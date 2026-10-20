@@ -46,6 +46,24 @@ case "$CONFIRM" in
     *) echo "중단합니다."; exit 1 ;;
 esac
 
+# ── 데모 산출물(근거 확인용) — ARTIFACT_ROOT를 따로 지정하지 않았고 아직 없으면 받아온다 ──
+if [ -z "${ARTIFACT_ROOT:-}" ] && [ ! -d data/artifacts/spring-petclinic-rest/src ]; then
+    echo "데모 산출물(spring-petclinic-rest)이 없어 받아옵니다 (완료 보고 근거 확인용)..."
+    bash sh/fetch_artifacts.sh || echo "⚠️  받기 실패 — 근거 확인은 '확인 불가'로 표시됩니다."
+fi
+
+# ── 임베딩 — 완료 보고 검색(RAG)은 로컬 bge-m3를 쓴다(보고 원문을 외부로 보내지 않음).
+#    Ollama에 bge-m3가 없으면 해시 임베더로 대체한다(동작은 하지만 검색 정확도가 낮다).
+if [ -z "${EMBEDDER:-}" ]; then
+    if curl -s --max-time 2 http://127.0.0.1:11434/api/tags 2>/dev/null | grep "\"${OLLAMA_EMBED_MODEL:-bge-m3}" >/dev/null; then
+        export EMBEDDER=ollama
+    else
+        export EMBEDDER=hash
+        echo "⚠️  Ollama bge-m3를 찾지 못해 해시 임베더로 검색합니다(정확도 낮음). bash sh/setup_ollama.sh 권장."
+    fi
+fi
+echo "임베딩: EMBEDDER=$EMBEDDER"
+
 # ── 1) 이전 실행 정리 ──────────────────────────────────────────────────
 lsof -ti:8100 | xargs kill -9 2>/dev/null || true
 rm -f session.db   # 채팅 이력만 초기화 — 업무 DB(data/req_trace.db)는 유지
