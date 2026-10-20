@@ -16,8 +16,13 @@ async def test_trace_server_tools_and_resource(store, settings):
         assert await mcp.find_tool("list_requirements") == "trace"
         status = await mcp.call_tool("get_store_status", {})
         assert status["counts"]["requirements"] == 1
+        store.replace_criteria("SFR-001", [{"text": "보호자를 등록할 수 있다"}], confirm=True)
         req = await mcp.call_tool("get_requirement", {"req_id": "SFR-001"})
         assert req["name"] == "보호자 등록"
+        assert req["criteria_state"] == "confirmed" and req["criteria"][0]["text"] == "보호자를 등록할 수 있다"
+        listed = await mcp.call_tool("list_requirements", {"category": "기능"})
+        assert listed["requirements"][0]["criteria_count"] == 1
+        assert (await mcp.call_tool("list_requirements", {"category": "보안"}))["requirements"] == []
         missing = await mcp.call_tool("get_requirement", {"req_id": "SFR-999"})
         assert "error" in missing
 

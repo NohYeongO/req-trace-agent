@@ -13,27 +13,41 @@ from dotenv import load_dotenv
 
 load_dotenv()   # LANGCHAIN_* · LLM_BACKEND 등 — agent import보다 먼저
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 from pydantic import BaseModel
 
 from agent.config import get_settings
+from agent.criteria_rules import beyond_source
 from agent.deps import SupervisorDeps
-from agent.graphs import build_chat_graph
+from agent.graphs import build_chat_graph, build_criteria_graph
 from agent.llm import build_llms
 from agent.mcp_client import MCPClient
-from agent.state import initial_state
+from agent.requirements import load_requirements
+from agent.state import initial_criteria_state, initial_state
 from agent.store import ProjectStore, SqliteSessionStore
 
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 CREATION_COUNT = 0   # 프로세스 내 Agent 번들 생성 횟수 (항상 1이어야 정상)
 
 
 class ChatRequest(BaseModel):
     message: str
     thread_id: str = "default"
+
+
+class CriterionIn(BaseModel):
+    id: int | None = None
+    text: str
+    origin: str | None = None
+
+
+class CriteriaUpdate(BaseModel):
+    criteria: list[CriterionIn]
+    confirm: bool = False
 
 
 @asynccontextmanager
@@ -51,6 +65,7 @@ async def lifespan(app: FastAPI):
                           settings=settings)
     app.state.deps = deps
     app.state.chat_graph = build_chat_graph(deps)
+    app.state.criteria_graph = build_criteria_graph(deps)
     app.state.instance_id = id(deps)
     yield
     await mcp.stop()
@@ -112,32 +127,105 @@ def _sse(payload: dict | str) -> str:
     return f"data: {data}\n\n"
 
 
+async def _stream_graph(graph, state: dict, result: dict):
+    """그래프 실행을 SSE 줄로 바꾼다. 노드별 진행 이벤트(updates)와 노드가 실행 중에 흘리는
+    이벤트(custom: 답변 토큰, 건별 진행률)를 보낸다. 노드는 events 전체 목록을 돌려주므로
+    지금까지 보낸 개수(sent) 뒤의 꼬리만 내보낸다. 마지막 상태 값은 result에 모은다."""
+    sent = 0
+    async for mode, payload in graph.astream(state, stream_mode=["updates", "custom"]):
+        if mode == "custom":
+            yield _sse(payload)
+            continue
+        for node_name, delta in payload.items():
+            events = (delta or {}).get("events") or []
+            for ev in events[sent:]:
+                yield _sse({**ev, "node": node_name})
+            sent = max(sent, len(events))
+            result.update({k: v for k, v in (delta or {}).items() if v not in (None, "")})
+
+
 @app.get("/chat/stream")
 async def chat_stream(message: str, thread_id: str = "default"):
-    """노드별 진행 이벤트와 답변 토큰을 SSE로 보낸다. 마지막에 FinalAnswer, [DONE] 순서.
-
-    노드는 events 전체 목록을 돌려주므로, 지금까지 보낸 개수(sent) 뒤의 꼬리만 내보낸다.
-    """
+    """채팅을 SSE로 보낸다. 마지막에 FinalAnswer, [DONE] 순서."""
     deps: SupervisorDeps = app.state.deps
 
     async def gen():
         history = deps.session_store.load(thread_id)
-        sent, final, last_prompt = 0, "", ""
-        async for mode, payload in app.state.chat_graph.astream(
-                initial_state(message, thread_id, history), stream_mode=["updates", "custom"]):
-            if mode == "custom":
-                yield _sse(payload)
-                continue
-            for node_name, delta in payload.items():
-                events = delta.get("events") or []
-                for ev in events[sent:]:
-                    yield _sse({**ev, "node": node_name})
-                sent = max(sent, len(events))
-                final = delta.get("final") or final
-                last_prompt = delta.get("last_prompt") or last_prompt
-        yield _sse({"type": "FinalAnswer", "reply": final, "prompt": last_prompt})
+        result: dict = {}
+        async for line in _stream_graph(app.state.chat_graph,
+                                        initial_state(message, thread_id, history), result):
+            yield line
+        final = result.get("final", "")
+        yield _sse({"type": "FinalAnswer", "reply": final, "prompt": result.get("last_prompt", "")})
         deps.session_store.append(thread_id, "user", message)
         deps.session_store.append(thread_id, "assistant", final)
+        yield _sse("[DONE]")
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# ── 요구사항 ────────────────────────────────────────────────────────────
+@app.post("/requirements/upload")
+async def upload_requirements(file: UploadFile = File(...)):
+    """요구사항 명세서(xlsx/json)를 반영한다. 기존 요구사항은 지우지 않고 갱신한다."""
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "파일이 너무 큽니다(최대 5MB).")
+    try:
+        loaded = load_requirements(data, file.filename or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:   # 손상된 엑셀 등
+        raise HTTPException(400, f"파일을 읽지 못했습니다: {type(e).__name__}")
+    if not loaded.requirements:
+        raise HTTPException(400, {"message": "반영할 요구사항이 없습니다.", "warnings": loaded.warnings})
+    diff = app.state.deps.store.upsert_requirements(loaded.requirements)
+    return {**diff, "filename": file.filename, "warnings": loaded.warnings}
+
+
+@app.get("/requirements")
+async def list_requirements(category: str | None = None):
+    return {"requirements": app.state.deps.store.list_requirements(category)}
+
+
+@app.get("/requirements/{req_id}")
+async def get_requirement(req_id: str):
+    req = app.state.deps.store.get_requirement(req_id)
+    if req is None:
+        raise HTTPException(404, f"요구사항 {req_id}가 없습니다.")
+    # AI 초안 중 원문 단어로 설명되지 않는 조건에 표시만 단다 — 확정할 때 눈여겨보라는 뜻.
+    for c in req["criteria"]:
+        c["beyond_source"] = c["origin"] == "ai" and beyond_source(req, c["text"])
+    return req
+
+
+@app.put("/requirements/{req_id}/criteria")
+async def update_criteria(req_id: str, body: CriteriaUpdate):
+    """완료 조건 목록 저장. confirm=true면 확정 — 이후 진척 계산의 기준이 된다."""
+    try:
+        items = app.state.deps.store.replace_criteria(
+            req_id, [c.model_dump() for c in body.criteria], body.confirm)
+    except KeyError:
+        raise HTTPException(404, f"요구사항 {req_id}가 없습니다.")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"req_id": req_id, "criteria": items,
+            "criteria_state": "confirmed" if body.confirm else "draft"}
+
+
+@app.get("/criteria/draft/stream")
+async def draft_criteria_stream(req_ids: str = "", overwrite: bool = False):
+    """완료 조건 초안 생성(요구사항 등록 에이전트)을 SSE로 진행한다.
+    req_ids를 비우면 조건이 없는 요구사항 전체가 대상이다. 마지막에 Done, [DONE] 순서."""
+    ids = [r.strip() for r in req_ids.split(",") if r.strip()]
+
+    async def gen():
+        result: dict = {}
+        async for line in _stream_graph(app.state.criteria_graph,
+                                        initial_criteria_state(ids, overwrite), result):
+            yield line
+        yield _sse({"type": "Done", "saved": result.get("saved", []),
+                    "failed": result.get("failed", {}), "cost_usd": result.get("cost_usd", 0.0)})
         yield _sse("[DONE]")
 
     return StreamingResponse(gen(), media_type="text/event-stream")
