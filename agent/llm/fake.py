@@ -40,6 +40,30 @@ class FakeLLM:
             items.append("블록체인 기반 위변조 방지 기능을 제공한다")
         return items, self._usage(desc, str(items))
 
+    @traceable(run_type="llm", name="fake.summarize_report")
+    async def summarize_report(self, text: str) -> tuple[dict, dict]:
+        first = re.split(r"(?<=[.!?。])\s|\n", text.strip())[0]
+        result = {"summary": first[:60], "query": text}
+        return result, self._usage(text, str(result))
+
+    @traceable(run_type="llm", name="fake.map_report")
+    async def map_report(self, text: str, candidates: list[dict], procedure: str,
+                         feedback: str | None = None) -> tuple[list[dict], dict]:
+        """조건 문장과 보고가 글자 2-gram을 충분히 공유하면 충족으로 본다. '아직', '안 했' 같은
+        부정 표현이 있는 문장은 '하지 않은 일'이므로 빼고 본다. 검증 루프를
+        재현하기 위해, 반려 사유 없이 처음 부를 때 후보 중 고유번호가 '9'로 끝나는 것이 있으면
+        후보에 없는 요구사항(ZZZ-999)을 섞는다(실모델의 매핑 날조 재현)."""
+        done = " ".join(sent for sent in re.split(r"(?<=[.!?。])\s+|\n", text)
+                        if not _NEGATION.search(sent))
+        links = []
+        for c in candidates:
+            met = [cr["id"] for cr in c["criteria"] if len(_bigrams(cr["text"]) & _bigrams(done)) >= 4]
+            if met:
+                links.append({"req_id": c["id"], "met": met, "reason": "보고와 조건 문장이 겹침"})
+        if feedback is None and any(c["id"].endswith("9") for c in candidates):
+            links.append({"req_id": "ZZZ-999", "met": [1], "reason": "지어낸 매핑"})
+        return links, self._usage(text, str(links))
+
     @traceable(run_type="llm", name="fake.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:
         name = _remembered_name(history)
@@ -56,6 +80,14 @@ class FakeLLM:
 
 
 _NAME_RE = re.compile(r"제 이름은\s*([^\s.,!?]+?)(?:입니다|이에요|예요|이야|야)?[\s.,!?]*$")
+
+
+_NEGATION = re.compile(r"아직|안\s?했|안\s?됐|않았|않습니다|못했|미구현|미완료|다음에|예정")
+
+
+def _bigrams(text: str) -> set[str]:
+    t = re.sub(r"[^0-9A-Za-z가-힣]", "", text)
+    return {t[i:i + 2] for i in range(len(t) - 1)} - {"있다", "한다", "수있", "할수"}
 
 
 def _remembered_name(history: list[dict]) -> str | None:

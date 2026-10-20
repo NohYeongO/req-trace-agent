@@ -47,6 +47,27 @@ class Settings:
     llm_concurrency: int = field(default_factory=lambda: int(_env("LLM_CONCURRENCY", "4")))
     # 완료 조건 초안이 검증에서 반려되면 다시 쓰게 하는 횟수
     criteria_retries: int = field(default_factory=lambda: int(_env("CRITERIA_RETRIES", "1")))
+    # ── 완료 보고 정리 ──
+    # 근거(파일·API·테스트) 실존 확인 대상 산출물. 데모는 sh/fetch_artifacts.sh로 받는다.
+    artifact_root: Path | None = field(default_factory=lambda: _optional_path(
+        "ARTIFACT_ROOT", DATA_DIR / "artifacts" / "spring-petclinic-rest"))
+    glossary_file: Path = field(default_factory=lambda: _path(
+        "GLOSSARY_FILE", DATA_DIR / "glossary" / "standard_terms.json"))
+    # 요구사항 검색 임베더: fake 백엔드는 해시(네트워크 없음), 실모델은 Ollama bge-m3
+    embedder: str = field(default_factory=lambda: _env(
+        "EMBEDDER", "hash" if _env("LLM_BACKEND", "fake") == "fake" else "ollama"))
+    embed_model: str = field(default_factory=lambda: _env("OLLAMA_EMBED_MODEL", "bge-m3"))
+    index_cache_dir: Path = field(default_factory=lambda: _path(
+        "INDEX_CACHE_DIR", PROJECT_ROOT / "output" / ".index"))
+    intake_top_k: int = field(default_factory=lambda: int(_env("INTAKE_TOP_K", "8")))
+    # 매핑이 검증에서 반려되면 다시 매핑하는 횟수
+    intake_retries: int = field(default_factory=lambda: int(_env("INTAKE_RETRIES", "2")))
+
+
+def _optional_path(env: str, default: Path) -> Path | None:
+    """설정 안 했고 기본 경로도 없으면 None — 근거 확인을 '확인 불가'로 처리한다."""
+    p = _path(env, default)
+    return p if os.environ.get(env) or p.exists() else None
 
 
 def get_settings() -> Settings:
