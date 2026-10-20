@@ -7,6 +7,7 @@ FastAPI 백엔드(server.py)가 lifespan에서 이 파일을 subprocess(stdio)�
 - Tool     get_store_status, list_requirements, get_requirement : 호출마다 결과가 바뀌는 동적 조회
 - Tool     search_requirements(query) : 완료 보고 문장으로 관련 요구사항 찾기(RAG, 임베딩 검색)
 - Tool     list_reports : 확인된 완료 보고 조회(기간·작성자·요구사항 필터)
+- Tool     get_progress : 진척 집계(전체·분류별·우선순위별·담당자별·위험 신호) — 대시보드·엑셀과 같은 함수
 - Resource requirement://{req_id} : 요구사항 1건 원문과 완료 조건(URI로 식별되는 문서)
 - Prompt   intake_mapping_prompt : 완료 보고 → 요구사항·조건 매핑 표준 절차
 """
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 load_dotenv()
 
 from agent.config import get_settings   # noqa: E402
+from agent.dashboard import build_dashboard   # noqa: E402
 from agent.retrieval import Glossary, RequirementSearch, make_embedder   # noqa: E402
 from agent.store import ProjectStore    # noqa: E402
 
@@ -77,6 +79,14 @@ def list_reports(since: str = "", until: str = "", author: str = "", req_id: str
     """확인된 완료 보고(최근순). since/until은 YYYY-MM-DD."""
     return {"reports": store().list_reports(limit, author or None, since or None, until or None,
                                             req_id or None)}
+
+
+@mcp.tool()
+def get_progress(as_of: str = "") -> dict:
+    """진척 집계. as_of(YYYY-MM-DD)를 주면 그날 기준. 추이(trend)는 크기 때문에 뺀다."""
+    dash = build_dashboard(store(), as_of or None)
+    dash.pop("trend")
+    return dash
 
 
 @mcp.prompt()
