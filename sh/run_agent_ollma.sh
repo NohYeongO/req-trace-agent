@@ -2,10 +2,9 @@
 #
 # req-trace-agent — Ollama 실모델로 에이전트를 "기동만" 해두는 스크립트.
 #
-# run_ollama_test.sh처럼 자동으로 요청을 보내고 검증한 뒤 끝나는 것이 아니라,
-# 서버를 켠 채로 그대로 떠 있게 두어 사용자가 직접 테스트해볼 수 있게 한다:
+# 서버를 켠 채로 떠 있게 두어 사용자가 직접 써볼 수 있게 한다:
 #   - curl로 /chat, /chat/stream 호출해보기
-#   - web_demo_server.py를 추가로 띄워 브라우저 채팅 화면으로 써보기 (사용 예 5)
+#   - sh/run_frontend.sh를 추가로 띄워 브라우저 화면으로 써보기
 #
 # 종료하려면 이 터미널에서 Ctrl+C.
 #
@@ -58,7 +57,7 @@ done
 
 # ── 2) 이전 실행 정리 ──────────────────────────────────────────────────
 lsof -ti:8100 | xargs kill -9 2>/dev/null || true
-rm -f session.db
+rm -f session.db   # 채팅 이력만 초기화 — 업무 DB(data/req_trace.db)는 유지
 
 cleanup() {
     echo
@@ -69,7 +68,7 @@ cleanup() {
 trap cleanup EXIT
 
 # ── 3) 서버 기동 (백그라운드로 띄운 뒤 준비될 때까지 대기) ─────────────
-LLM_BACKEND=ollama SUPERVISOR_VERSION=v2 python3 server.py &
+LLM_BACKEND=ollama python3 server.py &
 SERVER_PID=$!
 for _ in $(seq 1 40); do
     curl -s http://127.0.0.1:8100/health >/dev/null 2>&1 && break
@@ -89,16 +88,16 @@ cat <<EOF
 
 1) curl로 말 걸어보기
    curl -s -X POST localhost:8100/chat -H 'Content-Type: application/json' \\
-     -d '{"message":"auth-service 로그인 응답이 느려졌어요. 원인 확인해주세요","thread_id":"t-test"}' \\
+     -d '{"message":"안녕, 너는 누구야?","thread_id":"t-test"}' \\
      | python3 -m json.tool --no-ensure-ascii
 
 2) 실시간 진행 상황 보기 (스트리밍)
    curl -sN -G "localhost:8100/chat/stream" \\
-     --data-urlencode "message=web-01 CPU 급증 원인 진단해줘" \\
+     --data-urlencode "message=보안 요구사항 진행률 알려줘" \\
      --data-urlencode "thread_id=t-test-sse"
 
-3) 브라우저 채팅 화면으로 써보기 (새 터미널에서)
-   python3 web_demo_server.py
+3) 브라우저 화면 (새 터미널에서)
+   bash sh/run_frontend.sh
    → http://localhost:8600 접속
 
 종료하려면 이 터미널에서 Ctrl+C.
