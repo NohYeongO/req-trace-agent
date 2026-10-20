@@ -1,0 +1,10 @@
+.env
+.venv/
+session.db
+__pycache__/
+*.log
+
+# 과제 안내 자료 등 PDF — 외부 배포 금지
+*.pdf
+.DS_Store
+.pytest_cache/
