@@ -1,27 +1,27 @@
-"""web_demo_server.py — req-trace-agent 에이전트와 브라우저 채팅창으로 대화해보는 데모.
+"""web_demo_server.py — 브라우저 화면(web_chat.html) + 백엔드 프록시(:8600).
 
-web_chat.html은 Vue 3(CDN 글로벌 빌드, 별도 빌드 단계 없음)로 되어 있다.
-server.py(8100, 백엔드)는 전혀 건드리지 않는다. 이 스크립트는
-- web_chat.html 한 장을 같은 출처(origin)로 띄우고
-- /chat/stream 요청을 그대로 8100으로 중계(프록시)해서
-
-브라우저의 CORS 제약 없이 실제 에이전트와 대화할 수 있게 해주는 아주 얇은 레이어다.
-server.py는 평소처럼(fake/ollama/openai 아무 백엔드로나) 8100에 미리 띄워 놓아야 한다.
+web_chat.html 한 장을 같은 출처(origin)로 띄우고, 그 밖의 모든 요청을 백엔드(server.py,
+:8100)로 그대로 중계한다. 브라우저의 CORS 제약 없이 에이전트를 쓰기 위한 얇은 레이어다.
+SSE(text/event-stream) 응답은 버퍼링 없이 흘려보낸다. server.py가 먼저 떠 있어야 한다.
 
 실행:
-    python3 web_demo_server.py        # http://localhost:8600 에서 채팅 화면 오픈
+    python3 web_demo_server.py        # http://localhost:8600
 """
 from pathlib import Path
 
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 BACKEND = "http://127.0.0.1:8100"
 HERE = Path(__file__).parent
+# hop-by-hop 헤더와 길이 헤더는 프록시가 다시 계산하게 둔다.
+_DROP_HEADERS = {"host", "content-length", "connection", "transfer-encoding", "content-encoding"}
 
 app = FastAPI()
+client = httpx.AsyncClient(base_url=BACKEND, timeout=None)
 
 
 @app.get("/")
@@ -29,34 +29,20 @@ async def index():
     return FileResponse(HERE / "web_chat.html")
 
 
-@app.get("/health")
-async def proxy_health():
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(f"{BACKEND}/health")
-    return JSONResponse(r.json(), status_code=r.status_code)
-
-
-@app.post("/chat")
-async def proxy_chat(req: Request):
-    body = await req.body()
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        r = await client.post(f"{BACKEND}/chat", content=body,
-                              headers={"content-type": "application/json"})
-    return JSONResponse(r.json(), status_code=r.status_code)
-
-
-@app.get("/chat/stream")
-async def proxy_stream(message: str, thread_id: str = "web-demo"):
-    async def relay():
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream(
-                "GET", f"{BACKEND}/chat/stream",
-                params={"message": message, "thread_id": thread_id},
-            ) as upstream:
-                async for chunk in upstream.aiter_bytes():
-                    yield chunk
-
-    return StreamingResponse(relay(), media_type="text/event-stream")
+@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+async def proxy(path: str, request: Request):
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_HEADERS}
+    upstream = await client.send(
+        client.build_request(request.method, f"/{path}", params=request.query_params,
+                             headers=headers, content=await request.body()),
+        stream=True)
+    out_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in _DROP_HEADERS}
+    if upstream.headers.get("content-type", "").startswith("text/event-stream"):
+        return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code,
+                                 headers=out_headers, background=BackgroundTask(upstream.aclose))
+    body = await upstream.aread()
+    await upstream.aclose()
+    return Response(body, status_code=upstream.status_code, headers=out_headers)
 
 
 if __name__ == "__main__":
