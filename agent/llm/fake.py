@@ -27,6 +27,19 @@ class FakeLLM:
         result = {"route": route_by_rule(query)}
         return result, self._usage(query, str(result))
 
+    @traceable(run_type="llm", name="fake.draft_criteria")
+    async def draft_criteria(self, req: dict, feedback: str | None = None) -> tuple[list[str], dict]:
+        """상세설명을 쉼표·가운뎃점·'또는'·'및' 기준으로 나눈다. 검증 루프를 결정론으로
+        재현하기 위해, 반려 사유 없이 처음 부를 때 고유번호가 '9'로 끝나면 요구사항과
+        무관한 조건을 일부러 섞는다(실모델의 내용 덧붙이기 재현)."""
+        desc = (req.get("description") or req["name"]).rstrip(". ")
+        parts = [p.strip() for p in re.split(r",|·|\s또는\s|\s및\s", desc) if len(p.strip()) >= 4]
+        items = [f"{p}을(를) 확인한다" if not p.endswith(("다", "한다")) else p for p in parts[:4]]
+        items = items or [f"{req['name']} 기능을 제공한다"]
+        if feedback is None and req["id"].endswith("9"):
+            items.append("블록체인 기반 위변조 방지 기능을 제공한다")
+        return items, self._usage(desc, str(items))
+
     @traceable(run_type="llm", name="fake.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:
         name = _remembered_name(history)
