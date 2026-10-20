@@ -1,17 +1,15 @@
-"""Wave 12 — 프로세스 밖(SQLite 파일)에 두는 세션 저장소.
+"""채팅 이력 저장소(SQLite 파일).
 
-서버가 재시작돼도(새 프로세스, 새 인스턴스) 같은 session.db 파일을 다시 열므로
-대화 이력이 유지된다. in-memory dict였다면 재시작 즉시 소실됐을 상태다.
+서버가 재시작돼도 같은 파일을 다시 열므로 대화 이력이 유지된다. 업무 DB와 파일을 분리해
+실행 스크립트가 세션만 초기화해도 요구사항·완료 보고는 남게 했다.
 """
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "session.db"
-
 
 class SqliteSessionStore:
-    def __init__(self, db_path: Path = DB_PATH):
+    def __init__(self, db_path: Path):
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS messages ("
