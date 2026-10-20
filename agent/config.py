@@ -43,6 +43,10 @@ class Settings:
     fast_usd_per_1k: float = 0.00015
     quality_usd_per_1k: float = 0.005
     history_turns: int = field(default_factory=lambda: int(_env("HISTORY_TURNS", "10")))
+    # 요구사항 여러 건을 LLM에 동시에 보낼 상한 — 로컬 Ollama는 어차피 큐잉되므로 작게 둔다.
+    llm_concurrency: int = field(default_factory=lambda: int(_env("LLM_CONCURRENCY", "4")))
+    # 완료 조건 초안이 검증에서 반려되면 다시 쓰게 하는 횟수
+    criteria_retries: int = field(default_factory=lambda: int(_env("CRITERIA_RETRIES", "1")))
 
 
 def get_settings() -> Settings:

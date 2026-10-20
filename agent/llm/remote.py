@@ -61,6 +61,15 @@ class RemoteLLM:
             route = route_by_rule(query)
         return {"route": route}, usage
 
+    @traceable(run_type="llm", name="llm.draft_criteria")
+    async def draft_criteria(self, req: dict, feedback: str | None = None) -> tuple[list[str], dict]:
+        user = prompts.render_requirement(req)
+        if feedback:
+            user += f"\n\n이전 초안이 반려된 이유(반드시 고쳐서 다시 작성): {feedback}"
+        content, usage = await self._complete(prompts.CRITERIA_SYSTEM, user, prompts.CRITERIA_SCHEMA)
+        items = parse_json(content).get("criteria", [])
+        return [str(i).strip() for i in items if isinstance(i, (str, int, float))], usage
+
     @traceable(run_type="llm", name="llm.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:
         user = (f"## 지금까지의 대화\n{render_history(history, self.history_turns) or '(없음)'}\n\n"

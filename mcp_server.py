@@ -5,7 +5,7 @@ FastAPI 백엔드(server.py)가 lifespan에서 이 파일을 subprocess(stdio)�
 읽는다 — 조회 방법이 바뀌어도 에이전트 코드는 그대로다.
 
 - Tool     get_store_status, list_requirements, get_requirement : 호출마다 결과가 바뀌는 동적 조회
-- Resource requirement://{req_id} : 요구사항 1건 원문(URI로 식별되는 문서)
+- Resource requirement://{req_id} : 요구사항 1건 원문과 완료 조건(URI로 식별되는 문서)
 
 현황 집계·검색·완료 보고 조회 Tool과 Prompt는 기능 PR마다 여기에 추가한다.
 """
@@ -41,14 +41,14 @@ def get_store_status() -> dict:
 
 
 @mcp.tool()
-def list_requirements() -> dict:
-    """요구사항 목록(고유번호·분류·이름·우선순위)."""
-    return {"requirements": store().list_requirements()}
+def list_requirements(category: str = "") -> dict:
+    """요구사항 목록(고유번호·분류·이름·우선순위·완료 조건 개수와 상태). category로 분류 필터."""
+    return {"requirements": store().list_requirements(category or None)}
 
 
 @mcp.tool()
 def get_requirement(req_id: str) -> dict:
-    """요구사항 1건의 원문. 없으면 error를 돌려준다."""
+    """요구사항 1건의 원문과 완료 조건 체크리스트. 없으면 error를 돌려준다."""
     req = store().get_requirement(req_id)
     return req if req else {"error": f"요구사항 {req_id}가 없습니다."}
 
