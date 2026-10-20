@@ -17,6 +17,7 @@ cd "$(dirname "$0")/.."
 
 FAST_MODEL="${OLLAMA_FAST_MODEL:-qwen3:0.6b}"
 QUALITY_MODEL="${OLLAMA_QUALITY_MODEL:-qwen3:8b}"
+EMBED_MODEL="${OLLAMA_EMBED_MODEL:-bge-m3}"   # 완료 보고 → 요구사항 검색(RAG) 임베딩
 
 # ── 0) LangSmith 환경 ──────────────────────────────────────────────────
 if [ ! -f .env ]; then
@@ -27,7 +28,7 @@ fi
 set -a; source .env; set +a
 export LANGCHAIN_PROJECT="req-trace-agent-ollama"   # fake 모드와 프로젝트 분리
 echo "LangSmith: project=$LANGCHAIN_PROJECT tracing=${LANGCHAIN_TRACING_V2:-}"
-echo "모델: fast=$FAST_MODEL / quality=$QUALITY_MODEL"
+echo "모델: fast=$FAST_MODEL / quality=$QUALITY_MODEL / embed=$EMBED_MODEL"
 
 # ── 1) Ollama 데몬 확인 (없으면 기동) ──────────────────────────────────
 STARTED_OLLAMA=""
@@ -43,10 +44,10 @@ fi
 curl -s --max-time 2 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 \
     || { echo "ERROR: ollama serve 기동 실패"; exit 1; }
 
-for m in "$FAST_MODEL" "$QUALITY_MODEL"; do
+for m in "$FAST_MODEL" "$QUALITY_MODEL" "$EMBED_MODEL"; do
     # grep -q는 pipefail에서 SIGPIPE(141)를 유발하므로 전체를 읽는 형태로 검사
     ollama list | grep "^${m}" >/dev/null \
-        || { echo "ERROR: 모델 $m 미설치 — 'ollama pull $m' 후 재실행"; exit 1; }
+        || { echo "ERROR: 모델 $m 미설치 — bash sh/setup_ollama.sh 후 재실행"; exit 1; }
 done
 
 echo "모델 웜업 중 (최초 로드 수 초)..."
@@ -54,6 +55,12 @@ for m in "$FAST_MODEL" "$QUALITY_MODEL"; do
     curl -s http://127.0.0.1:11434/api/generate \
         -d "{\"model\":\"$m\",\"prompt\":\"hi\",\"stream\":false,\"options\":{\"num_predict\":1}}" >/dev/null
 done
+
+# ── 데모 산출물(근거 확인용) — ARTIFACT_ROOT를 따로 지정하지 않았고 아직 없으면 받아온다 ──
+if [ -z "${ARTIFACT_ROOT:-}" ] && [ ! -d data/artifacts/spring-petclinic-rest/src ]; then
+    echo "데모 산출물(spring-petclinic-rest)이 없어 받아옵니다 (완료 보고 근거 확인용)..."
+    bash sh/fetch_artifacts.sh || echo "⚠️  받기 실패 — 근거 확인은 '확인 불가'로 표시됩니다."
+fi
 
 # ── 2) 이전 실행 정리 ──────────────────────────────────────────────────
 lsof -ti:8100 | xargs kill -9 2>/dev/null || true
