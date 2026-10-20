@@ -79,6 +79,41 @@
     color: white; font-size: 14px; cursor: pointer;
   }
   form button:disabled { background: var(--line); cursor: default; }
+  /* ── 요구사항 탭 ── */
+  .wide { max-width: 1100px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+  .btn {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg);
+    color: var(--text); font-size: 13px; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: none;
+          color: var(--muted); font-size: 12px; cursor: pointer; }
+  .chip.on { border-color: var(--accent); color: var(--text); background: #2b2b48; }
+  .notice { margin-top: 12px; padding: 10px 14px; border-radius: 10px; font-size: 13px;
+            background: var(--bg); border: 1px solid var(--line); line-height: 1.6; }
+  .notice.warn { border-color: #a07a2a; }
+  .notice.err { border-color: #a04040; }
+  .progress { height: 6px; border-radius: 3px; background: var(--bg); overflow: hidden; margin-top: 8px; }
+  .progress > div { height: 100%; background: var(--accent); transition: width .2s; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; }
+  tbody tr.req { cursor: pointer; }
+  tbody tr.req:hover, tbody tr.req.open { background: #2a2a3e; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
+  .badge.none { background: #3a3a52; color: var(--muted); }
+  .badge.draft { background: #4a3d1e; color: #f0c674; }
+  .badge.confirmed { background: #1f3d2a; color: var(--ok); }
+  .badge.ai { background: #2b2b48; color: var(--accent-text); }
+  .badge.human { background: #2f3a2f; color: #a8d5a2; }
+  .detail { background: var(--bg); padding: 14px 16px; }
+  .detail p { margin: 0 0 10px; color: var(--muted); }
+  .crit { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .crit input { padding: 7px 10px; font-size: 13px; }
+  .crit .x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+  .table-wrap { overflow-x: auto; }
   @media (max-width: 640px) {
     nav { margin-left: 0; width: 100%; }
     .bubble, .steps, .prompt-box { max-width: 90%; }
@@ -98,7 +133,82 @@
   </header>
 
   <main>
-    <section v-if="tab !== 'chat'" class="page">
+    <section v-if="tab === 'requirements'" class="page">
+      <div class="card wide">
+        <h2>요구사항</h2>
+        <p>요구사항 명세서(xlsx·json)를 올리고, 요구사항마다 검수 때 확인할 완료 조건을 확정합니다.
+           AI 초안은 확정하기 전까지 진척 계산에 쓰이지 않습니다.</p>
+
+        <div class="toolbar">
+          <input type="file" ref="fileEl" accept=".xlsx,.xlsm,.json" style="max-width:260px" />
+          <button class="btn primary" :disabled="uploading" @click="upload">{{ uploading ? '반영 중…' : '명세서 반영' }}</button>
+        </div>
+        <div v-if="uploadResult" class="notice" :class="{ warn: uploadResult.warnings?.length || uploadResult.review_needed?.length }">
+          <b>{{ uploadResult.filename }}</b> 반영 — 신규 {{ uploadResult.added.length }}건, 변경 {{ uploadResult.updated.length }}건,
+          동일 {{ uploadResult.unchanged.length }}건 (전체 {{ uploadResult.total }}건)
+          <div v-if="uploadResult.missing.length">파일에 없는 기존 요구사항(삭제하지 않음): {{ uploadResult.missing.join(', ') }}</div>
+          <div v-if="uploadResult.review_needed.length">내용이 바뀌어 완료 조건을 다시 확인해야 함: {{ uploadResult.review_needed.join(', ') }}</div>
+          <div v-for="w in uploadResult.warnings" :key="w">⚠ {{ w }}</div>
+        </div>
+        <div v-if="uploadError" class="notice err">{{ uploadError }}</div>
+
+        <div class="toolbar">
+          <button v-for="c in categories" :key="c" class="chip" :class="{ on: catFilter === c }" @click="catFilter = c">{{ c }}</button>
+          <span style="width:12px"></span>
+          <button v-for="f in stateFilters" :key="f.id" class="chip" :class="{ on: stateFilter === f.id }" @click="stateFilter = f.id">
+            {{ f.label }} {{ stateCount(f.id) }}
+          </button>
+        </div>
+
+        <div class="toolbar">
+          <button class="btn primary" :disabled="drafting || !draftTargetCount" @click="draftCriteria">
+            {{ drafting ? 'AI 초안 작성 중…' : `AI로 완료 조건 초안 만들기 (${draftTargetCount}건)` }}
+          </button>
+          <label style="font-size:12px;color:var(--muted)"><input type="checkbox" v-model="overwrite" style="width:auto" /> 검토 대기 초안도 다시 쓰기</label>
+        </div>
+        <div v-if="draft.total || draft.message" class="notice">
+          <div v-if="draft.total">{{ draft.done }} / {{ draft.total }}건 작성
+            <span v-if="draft.rejected.length"> · 검증 반려 후 재작성: {{ draft.rejected.join(', ') }}</span></div>
+          <div v-if="draft.total" class="progress"><div :style="{ width: (100 * draft.done / draft.total) + '%' }"></div></div>
+          <div v-if="draft.message" style="margin-top:6px">{{ draft.message }}</div>
+        </div>
+
+        <div class="table-wrap">
+        <table v-if="reqs.length">
+          <thead><tr><th>ID</th><th>분류</th><th>요구사항명</th><th>우선순위</th><th>완료 조건</th></tr></thead>
+          <tbody>
+            <template v-for="r in filteredReqs" :key="r.id">
+              <tr class="req" :class="{ open: openId === r.id }" @click="toggle(r.id)">
+                <td>{{ r.id }}</td><td>{{ r.category }}</td><td>{{ r.name }}</td><td>{{ r.priority }}</td>
+                <td><span class="badge" :class="r.criteria_state">{{ stateLabel(r) }}</span></td>
+              </tr>
+              <tr v-if="openId === r.id && detail">
+                <td colspan="5" class="detail">
+                  <p>{{ detail.description || '(상세설명 없음)' }}</p>
+                  <div v-for="(c, i) in editItems" :key="i" class="crit">
+                    <span class="badge" :class="c.origin">{{ c.origin === 'ai' ? 'AI' : '사람' }}</span>
+                    <input v-model="c.text" @input="c.origin = c.origin === 'ai' && c.text !== c.original ? 'human' : c.origin" />
+                    <span v-if="c.beyond && c.origin === 'ai'" class="badge draft" title="요구사항 원문에 없는 내용이 들어 있을 수 있습니다. 확정 전에 확인하세요.">원문 외 내용?</span>
+                    <button class="x" title="삭제" @click="editItems.splice(i, 1)">✕</button>
+                  </div>
+                  <div class="toolbar">
+                    <button class="btn" @click="editItems.push({ text: '', origin: 'human' })">+ 조건 추가</button>
+                    <button class="btn" :disabled="saving" @click="saveCriteria(false)">초안으로 저장</button>
+                    <button class="btn primary" :disabled="saving || !editItems.length" @click="saveCriteria(true)">확정</button>
+                    <span v-if="detail.criteria_state === 'confirmed'" style="font-size:12px;color:var(--muted)">확정된 조건을 '초안으로 저장'하면 확정이 풀립니다.</span>
+                  </div>
+                  <div v-if="saveError" class="notice err">{{ saveError }}</div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <p v-else style="margin-top:12px">아직 요구사항이 없습니다. 명세서를 올려 주세요.</p>
+        </div>
+      </div>
+    </section>
+
+    <section v-else-if="tab !== 'chat'" class="page">
       <div class="card">
         <h2>{{ current.label }}</h2>
         <p>{{ current.desc }}</p>
@@ -134,16 +244,17 @@
 
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
 <script>
-const { createApp, ref, reactive, computed, nextTick } = Vue;
+const { createApp, ref, reactive, computed, nextTick, watch } = Vue;
 
 const TABS = [
   { id: 'dashboard', label: '대시보드', desc: '전체 진척률, 분류별·담당자별 현황, 진척 추이, 위험 신호를 보여주고 검수용 엑셀을 내보냅니다. (준비 중)' },
   { id: 'report', label: '완료 보고', desc: '개발을 마치면 이름과 한 일을 자유롭게 적습니다. AI가 해당 요구사항과 충족한 완료 조건을 정리해 제안하고, 확인을 누르면 저장됩니다. (준비 중)' },
-  { id: 'requirements', label: '요구사항', desc: '요구사항 명세서(엑셀)를 올리고, 요구사항별 완료 조건 체크리스트를 확정합니다. (준비 중)' },
+  { id: 'requirements', label: '요구사항', desc: '' },
   { id: 'chat', label: '채팅', desc: '' },
 ];
 
 const ROUTE_LABELS = { chat: '일반 대화', status: '현황 질의', summary: '요약 요청' };
+const STATE_LABELS = { none: '미작성', draft: '검토 대기', confirmed: '확정' };
 const STEP_LABELS = {
   RouteDecided: e => `질문 분류: ${ROUTE_LABELS[e.route] || e.route}`,
   Finalize: () => '답변 완료',
@@ -163,10 +274,118 @@ createApp({
     const thread = 't-web-' + Math.random().toString(36).slice(2, 8);
     let nextId = 0;
 
-    fetch('/health').then(r => r.json()).then(h => {
-      meta.value = `${h.project_name} · ${h.llm_backend} (${h.fast_llm} / ${h.quality_llm})`;
-      counts.value = h.counts;
-    }).catch(() => { meta.value = '백엔드 연결 안 됨'; });
+    function loadHealth() {
+      fetch('/health').then(r => r.json()).then(h => {
+        meta.value = `${h.project_name} · ${h.llm_backend} (${h.fast_llm} / ${h.quality_llm})`;
+        counts.value = h.counts;
+      }).catch(() => { meta.value = '백엔드 연결 안 됨'; });
+    }
+    loadHealth();
+
+    // ── 요구사항 탭 ──
+    const reqs = ref([]);
+    const fileEl = ref(null);
+    const uploading = ref(false);
+    const uploadResult = ref(null);
+    const uploadError = ref('');
+    const catFilter = ref('전체');
+    const stateFilter = ref('all');
+    const stateFilters = [{ id: 'all', label: '전체' }, { id: 'none', label: '미작성' },
+                          { id: 'draft', label: '검토 대기' }, { id: 'confirmed', label: '확정' }];
+    const openId = ref(null);
+    const detail = ref(null);
+    const editItems = ref([]);
+    const saving = ref(false);
+    const saveError = ref('');
+    const drafting = ref(false);
+    const overwrite = ref(false);
+    const draft = reactive({ done: 0, total: 0, rejected: [], message: '' });
+
+    const categories = computed(() => ['전체', ...new Set(reqs.value.map(r => r.category).filter(Boolean))]);
+    const filteredReqs = computed(() => reqs.value.filter(r =>
+      (catFilter.value === '전체' || r.category === catFilter.value) &&
+      (stateFilter.value === 'all' || r.criteria_state === stateFilter.value)));
+    const stateCount = id => id === 'all' ? reqs.value.length : reqs.value.filter(r => r.criteria_state === id).length;
+    const stateLabel = r => r.criteria_state === 'none' ? '미작성' : `${STATE_LABELS[r.criteria_state]} ${r.criteria_count}개`;
+    const draftTargetCount = computed(() => reqs.value.filter(r =>
+      r.criteria_state === 'none' || (overwrite.value && r.criteria_state === 'draft')).length);
+
+    async function loadReqs() {
+      const res = await fetch('/requirements');
+      reqs.value = (await res.json()).requirements;
+      loadHealth();
+    }
+
+    async function upload() {
+      const f = fileEl.value?.files?.[0];
+      uploadError.value = ''; uploadResult.value = null;
+      if (!f) { uploadError.value = '파일을 먼저 선택해 주세요.'; return; }
+      uploading.value = true;
+      const body = new FormData();
+      body.append('file', f);
+      try {
+        const res = await fetch('/requirements/upload', { method: 'POST', body });
+        const data = await res.json();
+        if (!res.ok) {
+          const d = data.detail;
+          uploadError.value = typeof d === 'string' ? d : `${d.message} ${(d.warnings || []).join(' / ')}`;
+        } else {
+          uploadResult.value = data;
+          await loadReqs();
+        }
+      } catch (e) { uploadError.value = '업로드 실패: ' + e; }
+      uploading.value = false;
+    }
+
+    async function toggle(id) {
+      saveError.value = '';
+      if (openId.value === id) { openId.value = null; detail.value = null; return; }
+      openId.value = id;
+      const res = await fetch(`/requirements/${encodeURIComponent(id)}`);
+      detail.value = await res.json();
+      editItems.value = detail.value.criteria.map(c => ({ id: c.id, text: c.text, original: c.text, origin: c.origin, beyond: c.beyond_source }));
+    }
+
+    async function saveCriteria(confirm) {
+      saving.value = true; saveError.value = '';
+      const res = await fetch(`/requirements/${encodeURIComponent(openId.value)}/criteria`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm, criteria: editItems.value.map(c => ({ id: c.id ?? null, text: c.text, origin: c.origin })) }),
+      });
+      const data = await res.json();
+      saving.value = false;
+      if (!res.ok) { saveError.value = data.detail; return; }
+      const id = openId.value;
+      await loadReqs();
+      openId.value = null;
+      await toggle(id);
+    }
+
+    function draftCriteria() {
+      drafting.value = true;
+      Object.assign(draft, { done: 0, total: 0, rejected: [], message: '' });
+      const es = new EventSource(`/criteria/draft/stream?overwrite=${overwrite.value}`);
+      es.onmessage = (event) => {
+        if (event.data === '[DONE]') { es.close(); drafting.value = false; loadReqs(); return; }
+        const e = JSON.parse(event.data);
+        if (e.type === 'CriteriaSelected') {
+          draft.total = e.count;
+          if (!e.count) draft.message = '초안을 쓸 요구사항이 없습니다.';
+        } else if (e.type === 'CriteriaDrafted' && !draft.rejected.includes(e.req_id)) {
+          draft.done = Math.min(e.done, draft.total);
+        } else if (e.type === 'CriteriaValidated' && e.rejected.length) {
+          draft.rejected = [...new Set([...draft.rejected, ...e.rejected])];
+        } else if (e.type === 'Done') {
+          draft.done = draft.total;
+          const failed = Object.keys(e.failed || {});
+          draft.message = `${e.saved.length}건 초안 저장` + (failed.length ? `, 실패 ${failed.length}건(${failed.join(', ')})` : '') +
+                          ' — 각 요구사항을 열어 검토한 뒤 확정해 주세요.';
+        }
+      };
+      es.onerror = () => { es.close(); drafting.value = false; draft.message = '연결이 끊겼습니다.'; loadReqs(); };
+    }
+
+    watch(tab, t => { if (t === 'requirements') loadReqs(); });
 
     async function scrollToBottom() {
       await nextTick();
@@ -214,7 +433,11 @@ createApp({
       es.onerror = () => { es.close(); sending.value = false; };
     }
 
-    return { tabs, tab, current, meta, counts, log, input, sending, logEl, onSubmit };
+    return { tabs, tab, current, meta, counts, log, input, sending, logEl, onSubmit,
+             reqs, fileEl, uploading, uploadResult, uploadError, upload, categories, catFilter,
+             stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
+             editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
+             draftCriteria };
   },
 }).mount('#app');
 </script>
