@@ -1,10 +1,17 @@
 .env
 .venv/
-session.db
 __pycache__/
+.pytest_cache/
 *.log
+.DS_Store
+
+# 실행 중 생기는 DB·산출물
+*.db
+*.db-wal
+*.db-shm
+output/
+data/uploads/
+data/artifacts/
 
 # 과제 안내 자료 등 PDF — 외부 배포 금지
 *.pdf
-.DS_Store
-.pytest_cache/
