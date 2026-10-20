@@ -35,3 +35,30 @@ def initial_criteria_state(req_ids: list[str], overwrite: bool) -> CriteriaState
     return {"req_ids": req_ids, "overwrite": overwrite, "targets": {}, "drafts": {},
             "feedback": {}, "failed": {}, "attempts": 0, "saved": [], "cost_usd": 0.0,
             "events": []}
+
+
+class IntakeState(TypedDict, total=False):
+    author: str
+    text: str
+    summary: str
+    query: str                  # 요구사항 검색 질의(LLM이 업무 용어로 다시 씀)
+    mentioned: list[str]        # 보고에 직접 적힌 요구사항 ID
+    evidence: list[dict]        # 정규식으로 뽑은 근거 [{type, value}]
+    candidates: list[dict]      # 후보 요구사항(조건 포함)
+    links: list[dict]           # 매핑 결과 [{req_id, met, reason}]
+    feedback: str               # 매핑 반려 사유(비어 있으면 통과)
+    attempts: int
+    evidence_check: list[dict]  # 근거 실존 확인 결과
+    decision: dict              # 개발자 확인 결과(interrupt 재개 값)
+    report_id: int
+    changes: list[dict]         # 요구사항별 진척 상태 변화
+    final: str
+    cost_usd: float
+    events: list[dict]
+
+
+def initial_intake_state(author: str, text: str) -> IntakeState:
+    return {"author": author, "text": text, "summary": "", "query": "", "mentioned": [],
+            "evidence": [], "candidates": [], "links": [], "feedback": "", "attempts": 0,
+            "evidence_check": [], "decision": {}, "report_id": 0, "changes": [], "final": "",
+            "cost_usd": 0.0, "events": []}

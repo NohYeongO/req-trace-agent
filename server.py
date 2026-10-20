@@ -7,6 +7,7 @@
 - LangSmith: 요청당 chat_request 루트 run 아래로 노드·LLM·MCP 호출이 계층 기록된다.
 """
 import json
+import uuid
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -15,6 +16,7 @@ load_dotenv()   # LANGCHAIN_* · LLM_BACKEND 등 — agent import보다 먼저
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
+from langgraph.types import Command
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 from pydantic import BaseModel
@@ -22,14 +24,14 @@ from pydantic import BaseModel
 from agent.config import get_settings
 from agent.criteria_rules import beyond_source
 from agent.deps import SupervisorDeps
-from agent.graphs import build_chat_graph, build_criteria_graph
+from agent.graphs import build_chat_graph, build_criteria_graph, build_intake_graph
 from agent.llm import build_llms
 from agent.mcp_client import MCPClient
 from agent.requirements import load_requirements
-from agent.state import initial_criteria_state, initial_state
+from agent.state import initial_criteria_state, initial_intake_state, initial_state
 from agent.store import ProjectStore, SqliteSessionStore
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 CREATION_COUNT = 0   # 프로세스 내 Agent 번들 생성 횟수 (항상 1이어야 정상)
 
@@ -50,6 +52,23 @@ class CriteriaUpdate(BaseModel):
     confirm: bool = False
 
 
+class ReportDraft(BaseModel):
+    author: str
+    text: str
+
+
+class LinkIn(BaseModel):
+    req_id: str
+    met_criteria: list[int] = []
+
+
+class ReportDecision(BaseModel):
+    decision: str                 # confirm | cancel
+    author: str | None = None
+    summary: str | None = None
+    links: list[LinkIn] = []
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global CREATION_COUNT
@@ -58,7 +77,8 @@ async def lifespan(app: FastAPI):
     fast_llm, quality_llm = build_llms(settings)
     store = ProjectStore(settings.db_path)
     # MCP 서버는 별도 프로세스라 업무 DB 경로를 환경변수로 넘겨 같은 파일을 보게 한다.
-    mcp = MCPClient(env={"DB_PATH": str(settings.db_path)})
+    mcp = MCPClient(env={"DB_PATH": str(settings.db_path), "EMBEDDER": settings.embedder,
+                         **({"ARTIFACT_ROOT": str(settings.artifact_root)} if settings.artifact_root else {})})
     await mcp.start()
     deps = SupervisorDeps(fast_llm=fast_llm, quality_llm=quality_llm, mcp=mcp, store=store,
                           session_store=SqliteSessionStore(settings.session_db_path),
@@ -66,6 +86,7 @@ async def lifespan(app: FastAPI):
     app.state.deps = deps
     app.state.chat_graph = build_chat_graph(deps)
     app.state.criteria_graph = build_criteria_graph(deps)
+    app.state.intake_graph = build_intake_graph(deps)
     app.state.instance_id = id(deps)
     yield
     await mcp.stop()
@@ -90,6 +111,7 @@ async def health():
             "llm_backend": deps.settings.llm_backend,
             "fast_llm": deps.fast_llm.name, "quality_llm": deps.quality_llm.name,
             "mcp_servers": list(deps.mcp.sessions),
+            "artifact_root": str(deps.settings.artifact_root) if deps.settings.artifact_root else None,
             "counts": deps.store.counts()}
 
 
@@ -127,14 +149,19 @@ def _sse(payload: dict | str) -> str:
     return f"data: {data}\n\n"
 
 
-async def _stream_graph(graph, state: dict, result: dict):
+async def _stream_graph(graph, state, result: dict, config: dict | None = None):
     """그래프 실행을 SSE 줄로 바꾼다. 노드별 진행 이벤트(updates)와 노드가 실행 중에 흘리는
     이벤트(custom: 답변 토큰, 건별 진행률)를 보낸다. 노드는 events 전체 목록을 돌려주므로
-    지금까지 보낸 개수(sent) 뒤의 꼬리만 내보낸다. 마지막 상태 값은 result에 모은다."""
+    지금까지 보낸 개수(sent) 뒤의 꼬리만 내보낸다. 마지막 상태 값은 result에 모은다.
+    interrupt()로 멈추면 ConfirmRequired 이벤트로 확인할 내용을 보낸다."""
     sent = 0
-    async for mode, payload in graph.astream(state, stream_mode=["updates", "custom"]):
+    async for mode, payload in graph.astream(state, config, stream_mode=["updates", "custom"]):
         if mode == "custom":
             yield _sse(payload)
+            continue
+        if "__interrupt__" in payload:
+            result["interrupted"] = True
+            yield _sse({"type": "ConfirmRequired", **payload["__interrupt__"][0].value})
             continue
         for node_name, delta in payload.items():
             events = (delta or {}).get("events") or []
@@ -229,6 +256,56 @@ async def draft_criteria_stream(req_ids: str = "", overwrite: bool = False):
         yield _sse("[DONE]")
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# ── 완료 보고 ──────────────────────────────────────────────────────────
+def _run_config(run_id: str) -> dict:
+    return {"configurable": {"thread_id": f"intake-{run_id}"}}
+
+
+@app.post("/reports/draft")
+async def draft_report(body: ReportDraft):
+    """완료 보고를 정리한다(SSE). 개발자 확인이 필요한 지점에서 ConfirmRequired를 보내고 멈춘다.
+    확인·취소는 POST /reports/{run_id}/confirm."""
+    if not body.author.strip() or not body.text.strip():
+        raise HTTPException(400, "작성자와 보고 내용을 입력해 주세요.")
+    run_id = uuid.uuid4().hex[:12]
+
+    async def gen():
+        yield _sse({"type": "RunStarted", "run_id": run_id})
+        result: dict = {}
+        async for line in _stream_graph(app.state.intake_graph,
+                                        initial_intake_state(body.author.strip(), body.text.strip()),
+                                        result, _run_config(run_id)):
+            yield line
+        yield _sse("[DONE]")
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.post("/reports/{run_id}/confirm")
+async def confirm_report(run_id: str, body: ReportDecision):
+    graph, config = app.state.intake_graph, _run_config(run_id)
+    snapshot = await graph.aget_state(config)
+    if "confirm" not in (snapshot.next or ()):
+        raise HTTPException(404, "확인을 기다리는 보고가 없습니다(이미 처리됐거나 서버가 재시작됨).")
+    if body.decision not in ("confirm", "cancel"):
+        raise HTTPException(400, "decision은 confirm 또는 cancel이어야 합니다.")
+    if body.decision == "confirm":
+        # 재개하기 전에 먼저 검증한다 — 저장 단계에서 실패하면 그래프가 save 직전에 멈춰
+        # 다시 확인할 수 없게 되기 때문이다.
+        try:
+            app.state.deps.store.check_links([l.model_dump() for l in body.links])
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    result = await graph.ainvoke(Command(resume=body.model_dump()), config)
+    return {"report_id": result.get("report_id") or None, "changes": result.get("changes", []),
+            "message": result.get("final", "")}
+
+
+@app.get("/reports")
+async def list_reports(limit: int = 20, author: str | None = None, req_id: str | None = None):
+    return {"reports": app.state.deps.store.list_reports(limit, author, req_id=req_id)}
 
 
 if __name__ == "__main__":

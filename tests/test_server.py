@@ -19,7 +19,7 @@ def client(tmp_path, monkeypatch):
 def test_health_reports_singleton_and_mcp(client):
     h = client.get("/health").json()
     assert h["status"] == "ok" and h["creation_count"] >= 1
-    assert h["mcp_servers"] == ["trace"]
+    assert h["mcp_servers"] == ["trace", "artifact"]
     assert h["counts"]["requirements"] == 0
 
 

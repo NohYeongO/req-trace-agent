@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 BACKEND = "http://127.0.0.1:8100"
@@ -32,10 +32,14 @@ async def index():
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(path: str, request: Request):
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_HEADERS}
-    upstream = await client.send(
-        client.build_request(request.method, f"/{path}", params=request.query_params,
-                             headers=headers, content=await request.body()),
-        stream=True)
+    try:
+        upstream = await client.send(
+            client.build_request(request.method, f"/{path}", params=request.query_params,
+                                 headers=headers, content=await request.body()),
+            stream=True)
+    except httpx.ConnectError:
+        return JSONResponse({"detail": "백엔드(8100)에 연결할 수 없습니다. server.py가 떠 있는지 확인하세요."},
+                            status_code=502)
     out_headers = {k: v for k, v in upstream.headers.items() if k.lower() not in _DROP_HEADERS}
     if upstream.headers.get("content-type", "").startswith("text/event-stream"):
         return StreamingResponse(upstream.aiter_raw(), status_code=upstream.status_code,

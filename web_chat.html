@@ -74,6 +74,7 @@
     background: var(--bg); color: var(--text); font-size: 14px;
   }
   input:focus { outline: 1px solid var(--accent); }
+  input[type=checkbox] { flex: none; width: auto; padding: 0; margin: 0; }
   form button {
     padding: 11px 20px; border-radius: 10px; border: none; background: var(--accent);
     color: white; font-size: 14px; cursor: pointer;
@@ -114,6 +115,31 @@
   .crit input { padding: 7px 10px; font-size: 13px; }
   .crit .x { border: none; background: none; color: var(--muted); cursor: pointer; font-size: 16px; }
   .table-wrap { overflow-x: auto; }
+  /* ── 진척 상태·완료 보고 탭 ── */
+  .badge.st-done { background: #1f3d2a; color: var(--ok); }
+  .badge.st-partial { background: #4a3d1e; color: #f0c674; }
+  .badge.st-none { background: #3a3a52; color: var(--muted); }
+  .badge.st-undef { background: #3a2a3a; color: #d8a8d8; }
+  textarea {
+    width: 100%; min-height: 110px; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit; resize: vertical;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .steplist { margin-top: 12px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+  .steplist div::before { content: "✓ "; color: var(--ok); }
+  .steplist div.warn::before { content: "↻ "; color: #f0c674; }
+  .linkcard { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: var(--bg); }
+  .linkcard.off { opacity: .45; }
+  .linkcard h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .linkcard .why { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 3px 0; }
+  .check input { width: auto; margin-top: 3px; }
+  .ev { font-size: 12px; display: flex; gap: 6px; padding: 2px 0; color: var(--muted); }
+  .ev b { color: var(--text); font-weight: 500; }
+  .ev .ok { color: var(--ok); } .ev .no { color: #ff8a8a; }
+  .report-item { border-top: 1px solid var(--line); padding: 10px 0; font-size: 13px; }
+  .report-item .meta { color: var(--muted); font-size: 12px; }
+  select { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); }
   @media (max-width: 640px) {
     nav { margin-left: 0; width: 100%; }
     .bubble, .steps, .prompt-box { max-width: 90%; }
@@ -175,18 +201,21 @@
 
         <div class="table-wrap">
         <table v-if="reqs.length">
-          <thead><tr><th>ID</th><th>분류</th><th>요구사항명</th><th>우선순위</th><th>완료 조건</th></tr></thead>
+          <thead><tr><th>ID</th><th>분류</th><th>요구사항명</th><th>우선순위</th><th>완료 조건</th><th>진척</th></tr></thead>
           <tbody>
             <template v-for="r in filteredReqs" :key="r.id">
               <tr class="req" :class="{ open: openId === r.id }" @click="toggle(r.id)">
                 <td>{{ r.id }}</td><td>{{ r.category }}</td><td>{{ r.name }}</td><td>{{ r.priority }}</td>
                 <td><span class="badge" :class="r.criteria_state">{{ stateLabel(r) }}</span></td>
+                <td><span class="badge" :class="statusClass(r.status)">{{ r.status }}</span>
+                    <span v-if="r.total" style="font-size:12px;color:var(--muted)"> {{ r.met }}/{{ r.total }}</span></td>
               </tr>
               <tr v-if="openId === r.id && detail">
-                <td colspan="5" class="detail">
+                <td colspan="6" class="detail">
                   <p>{{ detail.description || '(상세설명 없음)' }}</p>
                   <div v-for="(c, i) in editItems" :key="i" class="crit">
                     <span class="badge" :class="c.origin">{{ c.origin === 'ai' ? 'AI' : '사람' }}</span>
+                    <span v-if="c.metBy?.length" class="badge st-done" :title="'완료 보고 #' + c.metBy.join(', #')">충족</span>
                     <input v-model="c.text" @input="c.origin = c.origin === 'ai' && c.text !== c.original ? 'human' : c.origin" />
                     <span v-if="c.beyond && c.origin === 'ai'" class="badge draft" title="요구사항 원문에 없는 내용이 들어 있을 수 있습니다. 확정 전에 확인하세요.">원문 외 내용?</span>
                     <button class="x" title="삭제" @click="editItems.splice(i, 1)">✕</button>
@@ -205,6 +234,83 @@
         </table>
         <p v-else style="margin-top:12px">아직 요구사항이 없습니다. 명세서를 올려 주세요.</p>
         </div>
+      </div>
+    </section>
+
+    <section v-else-if="tab === 'report'" class="page">
+      <div class="card wide">
+        <h2>완료 보고</h2>
+        <p>개발을 마치면 한 일을 자유롭게 적어 주세요. 고유번호(SFR-005), API(GET /owners), 파일·테스트 이름을 함께 적으면
+           더 정확해집니다. AI가 관련 요구사항과 충족한 완료 조건을 정리해 제안하고, <b>확인</b>을 눌러야 저장됩니다.</p>
+        <div class="field">작성자
+          <input v-model="author" placeholder="이름" style="max-width:220px" @change="saveAuthor" />
+        </div>
+        <div class="field">보고 내용
+          <textarea v-model="reportText" placeholder="예: 보호자 검색은 성(lastName) 검색만 붙였습니다. GET /owners?lastName= 으로 조회되고, OwnerRestControllerV1Tests의 testGetOwnersListSuccess 통과. 전화번호 검색은 아직입니다."></textarea>
+        </div>
+        <div class="toolbar">
+          <button class="btn primary" :disabled="intake.running || !!intake.confirm" @click="draftReport">
+            {{ intake.running ? 'AI가 정리하는 중…' : 'AI로 정리하기' }}
+          </button>
+        </div>
+        <div v-if="intake.error" class="notice err">{{ intake.error }}</div>
+        <div v-if="intake.steps.length" class="steplist">
+          <div v-for="(st, i) in intake.steps" :key="i" :class="{ warn: st.warn }">{{ st.text }}</div>
+        </div>
+
+        <div v-if="intake.confirm" class="notice" style="margin-top:16px">
+          <b>AI 정리 결과를 확인해 주세요.</b> 요구사항과 충족한 조건을 고친 뒤 확인을 누르면 저장됩니다.
+          <div class="field">요약<input v-model="intake.summary" /></div>
+
+          <div v-for="l in intake.links" :key="l.req_id" class="linkcard" :class="{ off: !l.include }">
+            <h3><input type="checkbox" v-model="l.include" style="width:auto" /> {{ l.req_id }} {{ l.name }}</h3>
+            <div v-if="l.reason" class="why">AI 판단: {{ l.reason }}</div>
+            <label v-for="c in l.criteria" :key="c.id" class="check">
+              <input type="checkbox" v-model="c.met" :disabled="!l.include" />
+              <span>{{ c.text }} <span v-if="!c.confirmed" class="badge draft">미확정 조건</span></span>
+            </label>
+            <div v-if="!l.criteria.length" class="why">완료 조건이 없습니다. 요구사항 탭에서 먼저 확정해 주세요.</div>
+          </div>
+
+          <div class="toolbar">
+            <select v-model="intake.addId">
+              <option value="">다른 요구사항 추가…</option>
+              <option v-for="r in addable" :key="r.id" :value="r.id">{{ r.id }} {{ r.name }}</option>
+            </select>
+            <button class="btn" :disabled="!intake.addId" @click="addLink">추가</button>
+          </div>
+
+          <div class="field">근거 확인 (보고에 적힌 이름이 산출물에 실제로 있는지)</div>
+          <div v-if="!intake.evidence.length" class="why" style="font-size:12px;color:var(--muted)">보고에서 파일·API·테스트 이름을 찾지 못했습니다.</div>
+          <div v-for="(e, i) in intake.evidence" :key="i" class="ev">
+            <span :class="e.status === 'found' ? 'ok' : e.status === 'not_found' ? 'no' : ''">
+              {{ e.status === 'found' ? '✓' : e.status === 'not_found' ? '✗' : '–' }}</span>
+            <span>[{{ evLabel[e.type] || e.type }}]</span> <b>{{ e.value }}</b>
+            <span>{{ e.status === 'not_found' ? '산출물에서 찾지 못함' : (e.where || '') }}</span>
+          </div>
+
+          <div class="toolbar">
+            <button class="btn primary" :disabled="intake.saving" @click="decide('confirm')">확인하고 저장</button>
+            <button class="btn" :disabled="intake.saving" @click="decide('cancel')">취소</button>
+          </div>
+        </div>
+        <div v-if="intake.result" class="notice" style="margin-top:12px">
+          {{ intake.result.message }}
+          <div v-for="c in intake.result.changes" :key="c.req_id">
+            {{ c.req_id }}: <span class="badge" :class="statusClass(c.before)">{{ c.before }}</span> →
+            <span class="badge" :class="statusClass(c.after)">{{ c.after }}</span> ({{ c.met }}/{{ c.total }})
+          </div>
+        </div>
+
+        <h2 style="margin-top:24px">최근 완료 보고</h2>
+        <div v-for="r in reports" :key="r.id" class="report-item">
+          <div class="meta">#{{ r.id }} · {{ r.created_at.replace('T', ' ').slice(0, 16) }} · {{ r.author }}</div>
+          <div>{{ r.summary || r.raw_text }}</div>
+          <div v-for="l in r.links" :key="l.req_id" class="meta">
+            {{ l.req_id }} {{ l.req_name }} — {{ l.met_criteria.length ? l.met_criteria.map(c => c.text).join(' / ') : '충족 조건 없음' }}
+          </div>
+        </div>
+        <p v-if="!reports.length">아직 완료 보고가 없습니다.</p>
       </div>
     </section>
 
@@ -248,13 +354,35 @@ const { createApp, ref, reactive, computed, nextTick, watch } = Vue;
 
 const TABS = [
   { id: 'dashboard', label: '대시보드', desc: '전체 진척률, 분류별·담당자별 현황, 진척 추이, 위험 신호를 보여주고 검수용 엑셀을 내보냅니다. (준비 중)' },
-  { id: 'report', label: '완료 보고', desc: '개발을 마치면 이름과 한 일을 자유롭게 적습니다. AI가 해당 요구사항과 충족한 완료 조건을 정리해 제안하고, 확인을 누르면 저장됩니다. (준비 중)' },
+  { id: 'report', label: '완료 보고', desc: '' },
   { id: 'requirements', label: '요구사항', desc: '' },
   { id: 'chat', label: '채팅', desc: '' },
 ];
 
 const ROUTE_LABELS = { chat: '일반 대화', status: '현황 질의', summary: '요약 요청' };
 const STATE_LABELS = { none: '미작성', draft: '검토 대기', confirmed: '확정' };
+const STATUS_CLASS = { '완료': 'st-done', '부분완료': 'st-partial', '미착수': 'st-none', '조건 미확정': 'st-undef' };
+const EV_LABEL = { api: 'API', file: '파일', code: '코드', test: '테스트', pr: 'PR', commit: '커밋' };
+
+// POST 응답을 SSE로 읽는다(EventSource는 GET만 지원).
+async function readSSE(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+      if (!chunk.startsWith('data: ')) continue;
+      const data = chunk.slice(6);
+      if (data === '[DONE]') return;
+      try { onEvent(JSON.parse(data)); } catch {}
+    }
+  }
+}
 const STEP_LABELS = {
   RouteDecided: e => `질문 분류: ${ROUTE_LABELS[e.route] || e.route}`,
   Finalize: () => '답변 완료',
@@ -343,7 +471,7 @@ createApp({
       openId.value = id;
       const res = await fetch(`/requirements/${encodeURIComponent(id)}`);
       detail.value = await res.json();
-      editItems.value = detail.value.criteria.map(c => ({ id: c.id, text: c.text, original: c.text, origin: c.origin, beyond: c.beyond_source }));
+      editItems.value = detail.value.criteria.map(c => ({ id: c.id, text: c.text, original: c.text, origin: c.origin, beyond: c.beyond_source, metBy: c.met_by }));
     }
 
     async function saveCriteria(confirm) {
@@ -385,7 +513,77 @@ createApp({
       es.onerror = () => { es.close(); drafting.value = false; draft.message = '연결이 끊겼습니다.'; loadReqs(); };
     }
 
-    watch(tab, t => { if (t === 'requirements') loadReqs(); });
+    // ── 완료 보고 탭 ──
+    const statusClass = st => STATUS_CLASS[st] || 'st-none';
+    const evLabel = EV_LABEL;
+    let savedAuthor = '';
+    try { savedAuthor = localStorage.getItem('rt-author') || ''; } catch {}
+    const author = ref(savedAuthor);
+    const saveAuthor = () => { try { localStorage.setItem('rt-author', author.value); } catch {} };
+    const reportText = ref('');
+    const reports = ref([]);
+    const intake = reactive({ running: false, saving: false, steps: [], error: '', runId: '', confirm: null,
+                              summary: '', links: [], evidence: [], addId: '', result: null });
+    const addable = computed(() => reqs.value.filter(r => !intake.links.some(l => l.req_id === r.id)));
+
+    async function loadReports() {
+      reports.value = (await (await fetch('/reports?limit=20')).json()).reports;
+    }
+
+    function stepFor(e) {
+      if (e.type === 'ReportExtracted') return { text: `보고 요약: ${e.summary} (고유번호 ${e.mentioned.length}개, 근거 ${e.evidence_count}개 추출)` };
+      if (e.type === 'CandidatesFound') return { text: `후보 요구사항: ${[...new Set([...e.mentioned, ...e.searched])].join(', ') || '없음'}` };
+      if (e.type === 'ReportMapped') return { text: `요구사항·조건 매핑 (${e.attempt}차)` };
+      if (e.type === 'MappingValidated' && e.retry) return { warn: true, text: `매핑 반려 → 다시 매핑: ${e.problems.join(' / ')}` };
+      if (e.type === 'EvidenceChecked') return { text: `근거 확인: 있음 ${e.found}, 없음 ${e.not_found}, 확인 불가 ${e.unchecked}` };
+      return null;
+    }
+
+    async function draftReport() {
+      saveAuthor();
+      Object.assign(intake, { running: true, steps: [], error: '', confirm: null, result: null, links: [], evidence: [] });
+      if (!reqs.value.length) await loadReqs();
+      try {
+        const res = await fetch('/reports/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ author: author.value, text: reportText.value }) });
+        if (!res.ok) { intake.error = (await res.json()).detail; intake.running = false; return; }
+        await readSSE(res, e => {
+          if (e.type === 'RunStarted') intake.runId = e.run_id;
+          else if (e.type === 'ConfirmRequired') {
+            intake.confirm = e;
+            intake.summary = e.summary;
+            intake.links = e.links.map(l => ({ ...l, include: true, criteria: l.criteria.map(c => ({ ...c })) }));
+            intake.evidence = e.evidence_check;
+          } else { const st = stepFor(e); if (st) intake.steps.push(st); }
+        });
+      } catch (err) { intake.error = '정리 중 오류: ' + err; }
+      intake.running = false;
+    }
+
+    async function addLink() {
+      const r = await (await fetch(`/requirements/${encodeURIComponent(intake.addId)}`)).json();
+      intake.links.push({ req_id: r.id, name: r.name, reason: '직접 추가', include: true,
+                          criteria: r.criteria.map(c => ({ id: c.id, text: c.text, confirmed: c.confirmed, met: false })) });
+      intake.addId = '';
+    }
+
+    async function decide(decision) {
+      intake.saving = true; intake.error = '';
+      const links = intake.links.filter(l => l.include)
+        .map(l => ({ req_id: l.req_id, met_criteria: l.criteria.filter(c => c.met).map(c => c.id) }));
+      const res = await fetch(`/reports/${intake.runId}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision, author: author.value, summary: intake.summary, links }) });
+      const data = await res.json();
+      intake.saving = false;
+      if (!res.ok) { intake.error = data.detail; return; }
+      intake.confirm = null; intake.result = data;
+      if (decision === 'confirm') { reportText.value = ''; loadReports(); loadReqs(); }
+    }
+
+    watch(tab, t => {
+      if (t === 'requirements') loadReqs();
+      if (t === 'report') { loadReports(); loadReqs(); }
+    });
 
     async function scrollToBottom() {
       await nextTick();
@@ -437,7 +635,8 @@ createApp({
              reqs, fileEl, uploading, uploadResult, uploadError, upload, categories, catFilter,
              stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
              editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
-             draftCriteria };
+             draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake, addable,
+             draftReport, addLink, decide };
   },
 }).mount('#app');
 </script>

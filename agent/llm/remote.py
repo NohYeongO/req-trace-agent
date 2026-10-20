@@ -9,6 +9,7 @@ import re
 from langsmith import traceable
 
 from .. import prompts
+from ..requirements import REQ_ID_RE
 from .rules import route_by_rule
 
 
@@ -69,6 +70,32 @@ class RemoteLLM:
         content, usage = await self._complete(prompts.CRITERIA_SYSTEM, user, prompts.CRITERIA_SCHEMA)
         items = parse_json(content).get("criteria", [])
         return [str(i).strip() for i in items if isinstance(i, (str, int, float))], usage
+
+    @traceable(run_type="llm", name="llm.summarize_report")
+    async def summarize_report(self, text: str) -> tuple[dict, dict]:
+        content, usage = await self._complete(prompts.INTAKE_SUMMARY_SYSTEM, text,
+                                              prompts.INTAKE_SUMMARY_SCHEMA)
+        raw = parse_json(content)
+        summary = str(raw.get("summary") or "").strip() or text.strip().split("\n")[0][:60]
+        return {"summary": summary, "query": str(raw.get("query") or "").strip() or text}, usage
+
+    @traceable(run_type="llm", name="llm.map_report")
+    async def map_report(self, text: str, candidates: list[dict], procedure: str,
+                         feedback: str | None = None) -> tuple[list[dict], dict]:
+        user = (f"{procedure}\n\n## 후보 요구사항과 완료 조건\n{prompts.render_candidates(candidates)}")
+        if feedback:
+            user += f"\n\n## 이전 매핑이 반려된 이유(반드시 고칠 것)\n{feedback}"
+        content, usage = await self._complete(prompts.INTAKE_MAP_SYSTEM, user, prompts.INTAKE_MAP_SCHEMA)
+        links = []
+        for l in parse_json(content).get("links", []):
+            if isinstance(l, dict) and isinstance(l.get("req_id"), str):
+                met = [int(m) for m in l.get("met", []) if str(m).lstrip("-").isdigit()]
+                # 형식 보정: qwen3:8b는 "SFR-004 보호자 삭제"처럼 이름까지 붙여 쓰고, 반려 사유를
+                # 줘도 반복했다. 내용이 아니라 형식 문제라 반려 대신 고유번호만 뽑아 쓴다.
+                m = REQ_ID_RE.search(l["req_id"])
+                links.append({"req_id": m.group(1) if m else l["req_id"].strip(), "met": met,
+                              "reason": str(l.get("reason", ""))[:200]})
+        return links, usage
 
     @traceable(run_type="llm", name="llm.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:

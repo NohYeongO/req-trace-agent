@@ -13,7 +13,8 @@ def test_requirement_queries(store):
     store.conn.commit()
     assert store.list_requirements() == [
         {"id": "SFR-001", "category": "기능", "name": "보호자 등록", "priority": "",
-         "criteria_count": 0, "criteria_state": "none"}]
+         "criteria_count": 0, "criteria_state": "none", "status": "조건 미확정", "met": 0,
+         "total": 0, "completed_at": None, "report_count": 0}]
     assert store.get_requirement("SFR-001")["name"] == "보호자 등록"
     assert store.get_requirement("SFR-999") is None
 

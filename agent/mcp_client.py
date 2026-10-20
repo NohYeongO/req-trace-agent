@@ -20,7 +20,8 @@ from mcp.client.stdio import stdio_client
 
 SERVER_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_SERVER_SCRIPTS = {
-    "trace": SERVER_DIR / "mcp_server.py",
+    "trace": SERVER_DIR / "mcp_server.py",              # 업무 DB: 요구사항·완료 보고·검색
+    "artifact": SERVER_DIR / "mcp_server_artifact.py",  # 산출물: 근거 실존 확인
 }
 
 

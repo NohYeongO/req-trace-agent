@@ -72,3 +72,43 @@ CRITERIA_SCHEMA = {
 
 def render_requirement(req: dict) -> str:
     return f"요구사항: {req['id']} {req['name']} — {req.get('description') or '(상세설명 없음)'}"
+
+
+# ── 완료 보고 정리 ─────────────────────────────────────────────────────
+# 요약과 검색 질의만 LLM이 쓴다. 근거(파일·API·테스트)는 agent/evidence.py가 정규식으로 뽑는다.
+INTAKE_SUMMARY_SYSTEM = """너는 공공 SI 사업의 개발 완료 보고를 정리하는 담당자다.
+개발자가 자유롭게 쓴 보고를 읽고 JSON으로만 답하라.
+- summary: 무엇을 끝냈는지 한 문장(60자 이내). 보고에 없는 내용은 쓰지 않는다.
+- query: 관련 요구사항을 찾기 위한 검색 문장. 기능을 업무 용어(한국어)로 풀어 쓰고,
+  코드 이름(OwnerController 등)은 업무 용어로 바꿔 쓴다(예: Owner → 보호자, Pet → 반려동물)."""
+
+INTAKE_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": {"type": "string"}, "query": {"type": "string"}},
+    "required": ["summary", "query"],
+}
+
+INTAKE_MAP_SYSTEM = """너는 공공 SI 사업의 개발 완료 보고를 요구사항 완료 조건에 매핑하는 담당자다.
+주어진 절차와 후보 목록만 보고 JSON으로만 답하라.
+- links: 보고가 다룬 요구사항마다 {"req_id", "met": [충족한 완료 조건 id 숫자], "reason"}
+- 후보에 없는 req_id나 조건 id는 절대 쓰지 않는다. 관련 요구사항이 없으면 빈 배열."""
+
+INTAKE_MAP_SCHEMA = {
+    "type": "object",
+    "properties": {"links": {"type": "array", "items": {
+        "type": "object",
+        "properties": {"req_id": {"type": "string"},
+                       "met": {"type": "array", "items": {"type": "integer"}},
+                       "reason": {"type": "string"}},
+        "required": ["req_id", "met", "reason"]}}},
+    "required": ["links"],
+}
+
+
+def render_candidates(candidates: list[dict]) -> str:
+    lines = []
+    for c in candidates:
+        lines.append(f"- {c['id']} {c['name']}: {c.get('description', '')}")
+        for cr in c["criteria"]:
+            lines.append(f"    · 조건 id={cr['id']}: {cr['text']}")
+    return "\n".join(lines) or "(후보 없음)"

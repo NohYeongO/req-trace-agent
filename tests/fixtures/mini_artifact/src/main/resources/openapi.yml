@@ -1,0 +1,27 @@
+openapi: 3.0.1
+info: {title: demo, version: "1"}
+paths:
+  /owners:
+    post:
+      operationId: addOwner
+      summary: Adds a pet owner
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OwnerFields'}
+    get:
+      operationId: listOwners
+      summary: Lists pet owners
+      parameters:
+        - {name: lastName, in: query, description: Last name}
+  /owners/{ownerId}:
+    delete:
+      operationId: deleteOwner
+      summary: Delete an owner by ID
+components:
+  schemas:
+    OwnerFields:
+      type: object
+      properties:
+        lastName: {type: string, description: The last name, maxLength: 30}
+        telephone: {type: string, description: The telephone number, pattern: '^[0-9]*$', maxLength: 20}
