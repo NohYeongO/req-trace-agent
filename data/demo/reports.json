@@ -1,0 +1,288 @@
+{
+  "note": "데모 완료 보고. petclinic(핀 커밋 afc8fc1)의 실제 파일·API·테스트 이름으로 작성했다. expected는 담당자가 확인한 매핑(조건은 data/demo/criteria.json의 순번)이며 시드와 매핑 평가의 정답으로 쓴다.",
+  "reports": [
+    {
+      "created_at": "2026-10-01T10:20:00",
+      "author": "김민준",
+      "text": "보호자 등록 API 완료했습니다. POST /owners로 이름, 성, 주소, 도시, 전화번호를 받아 저장하고, 등록 후 GET /owners/{ownerId}로 다시 조회되는 것까지 확인했습니다. OwnerRestControllerV1.addOwner 구현, OwnerRestControllerV1Tests의 testCreateOwnerSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-001",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-02T16:05:00",
+      "author": "김민준",
+      "text": "보호자 상세 조회 끝났습니다. GET /owners/{ownerId} 응답에 보유한 반려동물 목록(pets)까지 같이 내려가게 했어요. testGetOwnerSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-002",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-03T11:40:00",
+      "author": "김민준",
+      "text": "보호자 정보 수정(PUT /owners/{ownerId})과 삭제(DELETE /owners/{ownerId}) 작업했습니다. 수정 후 다시 조회하면 바뀐 값이 나오고, 삭제는 없는 ID면 404를 돌려줍니다. testUpdateOwnerSuccess, testDeleteOwnerSuccess, testDeleteOwnerError 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-003",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-004",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-05T14:30:00",
+      "author": "이서연",
+      "text": "수의사 관리 API 전부 끝냈습니다. GET /vets, POST /vets, PUT /vets/{vetId}, DELETE /vets/{vetId} 구현했고 VetRestControllerV1Tests 전체 통과했습니다.",
+      "expected": [
+        {
+          "req_id": "SFR-012",
+          "met": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-06T17:10:00",
+      "author": "김민준",
+      "text": "보호자 검색은 1차로 성(lastName) 검색만 붙였습니다. GET /owners?lastName=Davis 형태로 조회되고 OwnerRestControllerV1.listOwners를 수정했어요. 전화번호 검색은 아직입니다. testGetOwnersListSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-005",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-07T13:00:00",
+      "author": "이서연",
+      "text": "진료 방문 기록 등록 완료. POST /owners/{ownerId}/pets/{petId}/visits로 방문 일자와 진료 내용을 저장하고, 반려동물을 조회하면 방문 기록도 함께 나옵니다. testCreateVisitSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-010",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-08T15:45:00",
+      "author": "김민준",
+      "text": "반려동물 등록·수정·삭제 했습니다. POST /owners/{ownerId}/pets로 이름, 생년월일, 종류를 받아 등록하고 보호자를 조회하면 목록에 보여요. 수정은 PUT /pets/{petId}, 삭제는 DELETE /pets/{petId}입니다. testCreatePetSuccess, testUpdatePetSuccess, testDeletePetSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-006",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-007",
+          "met": [
+            1
+          ]
+        },
+        {
+          "req_id": "SFR-008",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-09T10:15:00",
+      "author": "박지훈",
+      "text": "공통 오류 응답을 RFC 7807 Problem Details 형식으로 통일했습니다. ExceptionControllerAdvice에서 ProblemDetail을 만들어서 모든 컨트롤러 예외가 같은 형식으로 나갑니다.",
+      "expected": [
+        {
+          "req_id": "QUR-001",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-10T18:20:00",
+      "author": "이서연",
+      "text": "진료 방문 기록 수정 기능 붙였습니다. PUT /visits/{visitId}, testUpdateVisitSuccess 통과. 삭제는 다음에 하겠습니다.",
+      "expected": [
+        {
+          "req_id": "SFR-011",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-12T11:00:00",
+      "author": "박지훈",
+      "text": "역할 기반 접근통제 적용했습니다. Roles에 OWNER_ADMIN, VET_ADMIN, ADMIN을 정의하고 컨트롤러마다 @PreAuthorize를 걸었어요. 보호자 관리는 OWNER_ADMIN, 수의사 관리는 VET_ADMIN, 사용자 관리는 ADMIN만 호출할 수 있습니다. BasicAuthenticationConfig 참고.",
+      "expected": [
+        {
+          "req_id": "SER-001",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-13T14:10:00",
+      "author": "김민준",
+      "text": "반려동물 종류 관리 API 완료. GET /pettypes, POST /pettypes, PUT /pettypes/{petTypeId}, DELETE /pettypes/{petTypeId}. PetTypeRestControllerV1Tests 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-009",
+          "met": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-14T16:30:00",
+      "author": "박지훈",
+      "text": "사용자 계정 생성 API(POST /users) 만들었습니다. 생성할 때 roles로 역할을 여러 개 지정할 수 있습니다. UserServiceImpl.saveUser, testCreateUserSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-015",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-15T10:50:00",
+      "author": "박지훈",
+      "text": "비밀번호 해시용 BCryptPasswordEncoder 빈을 BasicAuthenticationConfig에 등록해 두었습니다. 사용자 저장할 때 실제로 인코딩하는 부분은 아직 연결하지 않았어요.",
+      "expected": [
+        {
+          "req_id": "SER-002",
+          "met": []
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-16T17:00:00",
+      "author": "김민준",
+      "text": "목록 페이징 지원을 추가했습니다. GET /v2/owners, GET /v2/pets에 page, size 파라미터로 페이지 단위 조회가 됩니다. 진료 방문 기록 목록 페이징은 아직입니다. V2RestControllersTests의 testGetOwnersPageSuccess, testGetPetsPageSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-016",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-17T11:25:00",
+      "author": "박지훈",
+      "text": "전화번호 형식 검증 넣었습니다. openapi.yml의 OwnerFields 스키마에 telephone을 숫자만 허용하는 pattern과 maxLength 20으로 설정했고 POST /owners, PUT /owners/{ownerId}에 적용됩니다.",
+      "expected": [
+        {
+          "req_id": "DAR-001",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-17T15:40:00",
+      "author": "이서연",
+      "text": "반려동물 생년월일 검증 완료. PetAgeValidator로 미래 날짜와 50년 넘은 날짜를 막았습니다. PetAgeValidatorTest의 shouldReturnFalseWhenBirthDateIsInFuture 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-020",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-18T13:15:00",
+      "author": "박지훈",
+      "text": "처리 시간 측정을 붙였습니다. CallMonitoringAspect로 Repository 호출 시간을 측정합니다. 임계치를 넘을 때 운영자 알림은 아직 구현하지 않았습니다.",
+      "expected": [
+        {
+          "req_id": "PER-001",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-19T10:00:00",
+      "author": "박지훈",
+      "text": "API 명세 제공 작업입니다. 전체 REST API를 openapi.yml로 문서화했고 SwaggerConfig로 swagger-ui에서 명세를 조회할 수 있습니다.",
+      "expected": [
+        {
+          "req_id": "QUR-002",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-10-19T16:45:00",
+      "author": "이서연",
+      "text": "SFR-011 진료 방문 기록 삭제도 마무리했습니다. DELETE /visits/{visitId}, testDeleteVisitSuccess 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-011",
+          "met": [
+            2
+          ]
+        }
+      ]
+    }
+  ]
+}
