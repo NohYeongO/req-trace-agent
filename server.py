@@ -9,13 +9,14 @@
 import json
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from dotenv import load_dotenv
 
 load_dotenv()   # LANGCHAIN_* · LLM_BACKEND 등 — agent import보다 먼저
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from langgraph.types import Command
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
@@ -23,6 +24,8 @@ from pydantic import BaseModel
 
 from agent.config import get_settings
 from agent.criteria_rules import beyond_source
+from agent.dashboard import build_dashboard
+from agent.rtm_export import export_rtm
 from agent.deps import SupervisorDeps
 from agent.graphs import build_chat_graph, build_criteria_graph, build_intake_graph
 from agent.llm import build_llms
@@ -31,7 +34,7 @@ from agent.requirements import load_requirements
 from agent.state import initial_criteria_state, initial_intake_state, initial_state
 from agent.store import ProjectStore, SqliteSessionStore
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.4.0"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 CREATION_COUNT = 0   # 프로세스 내 Agent 번들 생성 횟수 (항상 1이어야 정상)
 
@@ -306,6 +309,38 @@ async def confirm_report(run_id: str, body: ReportDecision):
 @app.get("/reports")
 async def list_reports(limit: int = 20, author: str | None = None, req_id: str | None = None):
     return {"reports": app.state.deps.store.list_reports(limit, author, req_id=req_id)}
+
+
+# ── 대시보드·검수용 추적표 ─────────────────────────────────────────────
+def _check_date(as_of: str | None) -> str | None:
+    if not as_of:
+        return None
+    try:
+        datetime.fromisoformat(as_of)
+    except ValueError:
+        raise HTTPException(400, "기준일은 YYYY-MM-DD 형식이어야 합니다.")
+    return as_of[:10]
+
+
+@app.get("/dashboard")
+async def dashboard(as_of: str | None = None, stale_days: int = 7):
+    """진척 집계. as_of를 주면 그날까지의 보고만 반영한다(엑셀·채팅과 같은 함수)."""
+    deps: SupervisorDeps = app.state.deps
+    return {"project_name": deps.settings.project_name,
+            **build_dashboard(deps.store, _check_date(as_of), stale_days)}
+
+
+@app.get("/export/rtm.xlsx")
+async def export_rtm_xlsx(as_of: str | None = None):
+    """검수용 요구사항 추적표 엑셀(표지·요약 / 추적표 / 완료 보고 이력)."""
+    deps: SupervisorDeps = app.state.deps
+    as_of = _check_date(as_of)
+    stamp = (as_of or datetime.now().strftime("%Y-%m-%d")).replace("-", "")
+    name = f"요구사항추적표_{stamp}.xlsx"
+    out = deps.settings.output_dir / f"rtm_{stamp}_{datetime.now().strftime('%H%M%S')}.xlsx"
+    export_rtm(deps.store, out, deps.settings.project_name, as_of)
+    return FileResponse(out, filename=name,
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 if __name__ == "__main__":
