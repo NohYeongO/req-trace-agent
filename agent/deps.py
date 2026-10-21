@@ -4,7 +4,7 @@
 SupervisorDeps 하나에 명시적으로 담아 functools.partial로 각 노드에 주입한다.
 테스트에서는 FakeLLM과 메모리 MCP 스텁을 꽂아 그래프 코드를 그대로 실행한다.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .config import Settings
@@ -18,3 +18,5 @@ class SupervisorDeps:
     store: Any           # 업무 DB (요구사항·완료 조건·완료 보고)
     session_store: Any   # 채팅 이력 DB
     settings: Settings
+    # 채팅 supervisor가 일을 넘길 하위 에이전트(컴파일된 그래프). 예: {"intake": 보고 정리 그래프}
+    agents: dict[str, Any] = field(default_factory=dict)
