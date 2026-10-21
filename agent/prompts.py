@@ -83,7 +83,7 @@ INTAKE_SUMMARY_SYSTEM = """너는 공공 SI 사업의 개발 완료 보고를 �
 개발자가 자유롭게 쓴 보고를 읽고 JSON으로만 답하라.
 - summary: 무엇을 끝냈는지 한 문장(60자 이내). 보고에 없는 내용은 쓰지 않는다.
 - query: 관련 요구사항을 찾기 위한 검색 문장. 기능을 업무 용어(한국어)로 풀어 쓰고,
-  코드 이름(OwnerController 등)은 업무 용어로 바꿔 쓴다(예: Owner → 보호자, Pet → 반려동물)."""
+  코드 이름(CartController 등)은 업무 용어로 바꿔 쓴다(예: Cart → 장바구니, Coupon → 쿠폰)."""
 
 INTAKE_SUMMARY_SCHEMA = {
     "type": "object",
