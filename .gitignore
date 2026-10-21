@@ -12,6 +12,7 @@ __pycache__/
 output/
 data/uploads/
 data/artifacts/
+data/repos/
 
 # 과제 안내 자료 등 PDF — 외부 배포 금지
 *.pdf
