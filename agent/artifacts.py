@@ -185,6 +185,27 @@ class ArtifactChecker:
             return {"status": "unchecked", "where": "공용 저장소(ARTIFACT_REPO_URL) 미설정이라 PR을 확인하지 않음"}
         return self.prs.check(int(value.lstrip("#")))
 
+    _INTEGRATION = re.compile(r"@SpringBootTest|@DataJpaTest|@DataRedisTest|@WebMvcTest|@Testcontainers|"
+                              r"@Container\b|@AutoConfigureMockMvc|TestContainer|extends\s+\w*Container")
+
+    def test_kinds(self, classes: list[str]) -> dict[str, dict]:
+        """테스트 클래스별 단위/통합 구분 — 저장소의 테스트 소스에서 스프링 컨텍스트·컨테이너를
+        띄우는 어노테이션(@SpringBootTest, @DataJpaTest, Testcontainers 등)이 있으면 통합으로 본다."""
+        self.refresh()
+        out = {}
+        if self.root is None:
+            return {c: {"kind": "미확인", "why": "저장소 미설정"} for c in classes}
+        tests = [p for p in self._code_files(True)]
+        for cls in classes:
+            src = next((p for p in tests if p.stem == cls), None)
+            if src is None:
+                out[cls] = {"kind": "미확인", "why": "저장소에서 테스트 소스를 찾지 못함"}
+                continue
+            m = self._INTEGRATION.search(self._source(src))
+            out[cls] = {"kind": "통합" if m else "단위", "why": m.group(0) if m else "외부 의존 없이 실행",
+                        "path": self._rel(src)}
+        return out
+
     def check(self, items: list[dict]) -> list[dict]:
         self.refresh()
         out = []

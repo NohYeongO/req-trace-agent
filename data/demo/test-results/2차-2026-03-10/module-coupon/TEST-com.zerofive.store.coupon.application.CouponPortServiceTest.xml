@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="쿠폰 관련 Repository 테스트" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-10T05:46:07" hostname="ci" time="0.389">
+  <properties/>
+  <testcase name="사용된 쿠폰은 조회되지 않음" classname="com.zerofive.store.coupon.application.CouponPortServiceTest" time="0.368"/>
+  <testcase name="만료된 쿠폰은 조회되지 않음" classname="com.zerofive.store.coupon.application.CouponPortServiceTest" time="0.008"/>
+  <testcase name="사용 가능한 쿠폰 목록 조회 테스트" classname="com.zerofive.store.coupon.application.CouponPortServiceTest" time="0.011"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

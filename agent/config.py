@@ -33,6 +33,8 @@ class Settings:
     session_db_path: Path = field(default_factory=lambda: _path(
         "SESSION_DB_PATH", PROJECT_ROOT / "session.db"))
     output_dir: Path = field(default_factory=lambda: _path("OUTPUT_DIR", PROJECT_ROOT / "output"))
+    # 업로드 자료(테스트 결과 zip 등). 커밋하지 않는다(.gitignore data/uploads/).
+    upload_dir: Path = field(default_factory=lambda: _path("UPLOAD_DIR", DATA_DIR / "uploads"))
     llm_backend: str = field(default_factory=lambda: _env("LLM_BACKEND", "fake"))
     ollama_url: str = field(default_factory=lambda: _env("OLLAMA_URL", "http://127.0.0.1:11434"))
     ollama_fast_model: str = field(default_factory=lambda: _env("OLLAMA_FAST_MODEL", "qwen3:0.6b"))
@@ -74,6 +76,9 @@ class Settings:
     qa_retries: int = field(default_factory=lambda: int(_env("QA_RETRIES", "2")))
     # '이번 주' 같은 기간 해석의 기준일을 고정할 때(데모·테스트). 비우면 오늘.
     fixed_today: str = field(default_factory=lambda: _env("FIXED_TODAY", ""))
+    # ── 검수 산출물 ──
+    # 서술 섹션이 수치 검증에서 반려되면 다시 쓰게 하는 횟수. 넘으면 코드 문장으로 대체한다.
+    deliverable_retries: int = field(default_factory=lambda: int(_env("DELIVERABLE_RETRIES", "2")))
 
 
 def today_of(settings: "Settings") -> date:

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="배송지 관련 Repository 테스트" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-03-10T05:45:54" hostname="ci" time="0.408">
+  <properties/>
+  <testcase name="배송지 저장 및 조회 테스트" classname="com.zerofive.store.account.application.AddressPortServiceTest" time="0.396"/>
+  <testcase name="계정별 배송지 분리 조회 테스트" classname="com.zerofive.store.account.application.AddressPortServiceTest" time="0.011"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
