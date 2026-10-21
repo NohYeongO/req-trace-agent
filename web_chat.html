@@ -101,6 +101,7 @@
   tbody tr.req:hover, tbody tr.req.open { background: #2a2a3e; }
   .docview { margin-top: 24px; border-top: 1px solid var(--line, #333); padding-top: 12px; }
   .docsec { margin: 14px 0; }
+  .grouphead { margin: 18px 0 6px; font-size: 15px; display: flex; gap: 8px; align-items: center; }
   .docsec h3 { margin: 0 0 6px; font-size: 15px; }
   .docsec textarea { width: 100%; }
   tr.sel td { background: rgba(108, 99, 255, .12); }
@@ -328,15 +329,17 @@
     <section v-else-if="tab === 'deliverables'" class="page">
       <div class="card wide" style="max-width:1200px">
         <h2>검수 산출물</h2>
-        <p>테스트 결과 파일(JUnit·JaCoCo XML)과 완료 보고로 <b>테스트 결과 보고서</b> 초안을 만듭니다. 표의 숫자는 결과 파일에서
-           코드가 계산하고, AI는 실패 원인 분석·종합 의견만 씁니다(서술 속 숫자는 결과와 대조). 담당자가 검토·수정한 뒤
-           <b>확정</b>하면 제출용 docx를 받을 수 있습니다.</p>
+        <p><b>테스트 결과 보고서</b>는 테스트 결과 파일(JUnit·JaCoCo XML)로, <b>개발 명세서</b>(인터페이스·테이블 정의서)는
+           공용 저장소의 소스(컨트롤러·DTO·JPA 엔티티·DDL)로 만듭니다. 표의 값은 코드가 계산하고, AI는 서술과 소스에 없는
+           이름(논리명·설명)만 채웁니다 — AI가 채운 칸은 '(추정)'으로 표시됩니다. 담당자가 검토·수정한 뒤 <b>확정</b>하면
+           제출용 docx·xlsx를 받을 수 있습니다.</p>
         <div class="field"><span>문서 종류</span>
           <select v-model="dv.docType" style="max-width:320px">
             <option value="test_report">테스트 결과 보고서 (단위·통합)</option>
-            <option value="dev_spec" disabled>개발 명세서 (준비 중)</option>
+            <option value="dev_spec">개발 명세서 (인터페이스·테이블 정의서)</option>
           </select>
         </div>
+        <template v-if="dv.docType === 'test_report'">
         <div class="field"><span>테스트 결과 자료</span>
           <select v-model="dv.source" style="max-width:420px">
             <option v-for="s in dv.sources" :key="s.source" :value="s.source">
@@ -349,8 +352,10 @@
           <button class="btn" :disabled="dv.uploading" @click="dvUpload">결과 zip 올리기</button>
           <span class="hint">build/test-results 와 jacoco XML을 zip으로 묶어 올리세요.</span>
         </div>
+        </template>
+        <div v-else class="hint" style="margin:0 0 8px">분석 대상: 서버에 설정된 공용 저장소(ARTIFACT_REPO_URL)의 납품 브랜치 최신 커밋</div>
         <div class="toolbar">
-          <button class="btn primary" :disabled="dv.running || !dv.source" @click="dvDraft">
+          <button class="btn primary" :disabled="dv.running || (dv.docType === 'test_report' && !dv.source)" @click="dvDraft">
             {{ dv.running ? 'AI가 작성하는 중…' : '초안 만들기' }}</button>
         </div>
         <div v-if="dv.error" class="notice err">{{ dv.error }}</div>
@@ -374,7 +379,11 @@
 
         <div v-if="dv.doc" class="docview">
           <h2>{{ dv.doc.title }} <span class="badge" :class="dv.doc.status === 'confirmed' ? 'st-done' : 'draft'">{{ dv.doc.status === 'confirmed' ? '확정' : '검토 중' }}</span></h2>
-          <div v-for="sec in dv.doc.content.sections" :key="sec.id" class="docsec">
+          <template v-for="(sec, si) in dv.doc.content.sections" :key="sec.id">
+          <h3 v-if="sec.group && dv.doc.content.sections[si - 1]?.group !== sec.group" class="grouphead">
+            {{ GROUP_NAMES[sec.group] || sec.group }} ({{ dv.doc.content.sections.filter(x => x.group === sec.group).length }}개)
+            <button class="btn" @click="dv.open[sec.group] = !dv.open[sec.group]">{{ dv.open[sec.group] ? '접기' : '펼치기' }}</button></h3>
+          <div v-if="!sec.group || dv.open[sec.group]" class="docsec">
             <h3>{{ sec.title }}
               <span v-if="sec.kind === 'ai'" class="badge" :class="sec.edited ? 'st-done' : sec.fallback ? 'st-none' : 'draft'">
                 {{ sec.edited ? '담당자 수정' : sec.fallback ? '코드 작성(AI 검증 실패)' : 'AI 초안' }}</span></h3>
@@ -390,6 +399,7 @@
             </template>
             <div v-if="sec.note" class="hint" style="margin:4px 0 0">※ {{ sec.note }}</div>
           </div>
+          </template>
           <div class="toolbar">
             <template v-if="dv.doc.status !== 'confirmed'">
               <button class="btn" :disabled="dv.saving" @click="dvSave">수정 저장</button>
@@ -398,7 +408,8 @@
                 <input type="checkbox" v-model="dv.ack" /> <span>경고를 확인했고 담당자 책임으로 확정</span></label>
               <button class="btn primary" :disabled="dv.saving || !dv.by.trim()" @click="dvConfirm">확정</button>
             </template>
-            <a class="btn" :href="`/deliverables/${dv.doc.id}/docx`">docx 다운로드 ({{ dv.doc.status === 'confirmed' ? '확정본' : '초안' }})</a>
+            <a class="btn" :href="`/deliverables/${dv.doc.id}/docx`">docx ({{ dv.doc.status === 'confirmed' ? '확정본' : '초안' }})</a>
+            <a class="btn" :href="`/deliverables/${dv.doc.id}/xlsx`">xlsx ({{ dv.doc.status === 'confirmed' ? '확정본' : '초안' }})</a>
           </div>
           <div v-if="dv.msg" class="notice">{{ dv.msg }}</div>
         </div>
@@ -842,20 +853,25 @@ createApp({
     // ── 산출물 탭 ──
     const dv = reactive({ docType: 'test_report', sources: [], source: '', uploading: false, running: false,
                           steps: [], live: '', error: '', docs: [], doc: null, edits: {}, warnings: {},
-                          by: '', ack: false, saving: false, msg: '' });
+                          by: '', ack: false, saving: false, msg: '', open: {} });
+    const GROUP_NAMES = { interface_detail: '인터페이스 상세', table_detail: '테이블 정의' };
     const dvFileEl = ref(null);
     const dvSourceInfo = computed(() => dv.sources.find(s => s.source === dv.source)?.description || '');
     const DV_STEPS = {
       ResultsCollected: e => `결과 자료 해석: 테스트 ${e.cases}건, 클래스 ${e.classes}개(단위 ${e.unit}·통합 ${e.integration}·미확인 ${e.unknown}), 커버리지 모듈 ${e.coverage_modules}개, 완료 보고 ${e.reports}건`,
-      DocumentBuilt: e => `표 작성(코드): 섹션 ${e.sections}개, 통과율 ${e.pass_rate}%, 테스트가 연결된 요구사항 ${e.linked}건`,
-      SectionsWritten: e => `AI 서술 작성 (${e.attempt}차): ${e.sections.map(s => DV_NAMES[s] || s).join(', ')}`,
+      SourceAnalyzed: e => `소스 분석(커밋 ${e.head || '-'}): 인터페이스 ${e.endpoints}개, 엔티티 ${e.entities}개, DTO ${e.dtos}개, DDL ${e.ddl_files.join(', ') || '없음'}, 엔티티·DDL 불일치 ${e.issues}건`,
+      DocumentBuilt: e => e.doc_type === 'test_report'
+        ? `표 작성(코드): 섹션 ${e.sections}개, 통과율 ${e.pass_rate}%, 테스트가 연결된 요구사항 ${e.linked}건`
+        : `표 작성(코드): 인터페이스 ${e.numbers.endpoints}개, 테이블 ${e.numbers.tables}개, 요구사항 연결 ${e.numbers.covered}건 → AI 작업 ${e.tasks.length}개`,
+      SectionsWritten: e => `AI 작업 완료 (${e.attempt}차): ${e.sections.length}개`,
       SectionsValidated: e => Object.keys(e.problems).length
-        ? `서술 수치 검증 반려: ${Object.entries(e.problems).map(([k, v]) => `${DV_NAMES[k] || k} — ${v.join(' / ')}`).join('; ')}`
-          + (e.fallback.length ? ' → 코드 문장으로 대체' : ' → 다시 작성') : '서술 수치 검증 통과',
+        ? `AI 결과 검증 반려: ${Object.entries(e.problems).map(([k, v]) => `${dvTaskName(k)} — ${v.join(' / ')}`).join('; ')}`
+          + (e.fallback.length ? ` → 대체(${e.fallback.map(dvTaskName).join(', ')})` : ' → 다시 작성') : 'AI 결과 검증 통과(수치·이름 형식)',
       DraftSaved: e => `초안 저장: ${e.title}`,
       Failed: e => `실패: ${e.error}`,
     };
-    const DV_NAMES = { failure_analysis: '실패 원인 분석', opinion: '종합 의견' };
+    const DV_NAMES = { failure_analysis: '실패 원인 분석', opinion: '종합 의견', endpoints: '인터페이스 설명 추정' };
+    const dvTaskName = t => DV_NAMES[t] || (t.startsWith('names:') ? `${t.slice(6)} 논리명 추정` : t);
 
     async function dvLoad() {
       const [src, docs] = await Promise.all([fetch('/deliverables/sources').then(r => r.json()), fetch('/deliverables').then(r => r.json())]);
@@ -877,13 +893,20 @@ createApp({
     }
     async function dvDraft() {
       Object.assign(dv, { running: true, steps: [], live: '', error: '' });
-      const res = await fetch('/deliverables/test-report/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                                   body: JSON.stringify({ source: dv.source }) });
+      const kind = dv.docType === 'test_report' ? 'test-report' : 'dev-spec';
+      const res = await fetch(`/deliverables/${kind}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                               body: JSON.stringify(dv.docType === 'test_report' ? { source: dv.source } : {}) });
       let docId = null, lastSec = '';
       await readSSE(res, e => {
         if (e.type === 'SectionToken') {
-          if (e.section !== lastSec) { dv.live += `\n[${DV_NAMES[e.section] || e.section}]\n`; lastSec = e.section; }
+          if (e.section !== lastSec) { dv.live += `\n[${dvTaskName(e.section)}]\n`; lastSec = e.section; }
           dv.live += e.delta; return;
+        }
+        if (e.type === 'TaskDone') {
+          const last = dv.steps[dv.steps.length - 1];
+          const text = `AI 작업 ${e.index}/${e.of} (${e.attempt}차): ${dvTaskName(e.task)}`;
+          if (last && last.task) Object.assign(last, { text }); else dv.steps.push({ text, task: true });
+          return;
         }
         if (e.type === 'Done') { docId = e.doc_id; if (e.error) dv.error = e.error; return; }
         const f = DV_STEPS[e.type];
@@ -1020,7 +1043,7 @@ createApp({
              stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
              editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
              draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake,
-             dv, dvFileEl, dvSourceInfo, dvUpload, dvDraft, dvOpen, dvSave, dvConfirm,
+             dv, dvFileEl, dvSourceInfo, GROUP_NAMES, dvUpload, dvDraft, dvOpen, dvSave, dvConfirm,
              draftReport, onIntakeDone, evTypes, evRows, reqSel, reqPick, pickReq, fillMsg, fillEvidence, onChatReportDone, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
   },
 }).component('report-confirm', ReportConfirm).mount('#app');
