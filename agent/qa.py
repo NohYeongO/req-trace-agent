@@ -1,18 +1,61 @@
-"""현황 질의응답·요약의 결정론 부분 — 도구 계획, 사실 정리, 답변 수치 검증, 안전한 대체 답변.
+"""현황 질의응답·요약의 결정론 부분 — 질문 분석, 도구 계획, 코멘트 검증.
 
 역할 분담(소형 모델에서 얻은 교훈):
-- 어떤 MCP Tool을 부를지는 질문 속 고유번호·분류명·기간 표현으로 코드가 정한다.
-- 답변 문장은 LLM이 쓰되, 근거는 여기서 정리한 '사실' 문단만 준다.
-- 답변에 나온 숫자·고유번호가 사실에 있는지 코드가 검증하고, 끝내 틀리면 코드가 만든 답으로 대체한다.
+- 질문이 무엇을 묻는지(유형·대상·기간)와 어떤 MCP Tool을 부를지는 코드가 정한다.
+- 답의 본문(숫자·고유번호·상태)은 agent/answers.py가 조회 결과로 직접 쓴다. qwen3:8b에게 사실
+  문단을 주고 답을 쓰게 했더니 숫자는 맞아도 묻지 않은 수치를 늘어놓거나('SFR-005 남은 거'에
+  전체 진척률·미착수 건수까지), 문장이 어색하거나('다음과 있습니다'), 해석이 틀렸다.
+- LLM은 본문 뒤에 붙일 짧은 코멘트만 쓰고, 코멘트도 숫자·고유번호를 검증해 틀리면 뺀다.
+
+질문 유형(intent)
+  requirement  특정 요구사항(고유번호)
+  lookup       이름으로 묻는 기능('결제 기능 끝났어?') — 요구사항 이름 대조, 없으면 RAG 검색
+  category     분류(기능·보안·성능·데이터·품질)
+  author       담당자별 실적
+  pending      미완료 목록 (부분완료·미착수로 좁힐 수 있음)
+  risks        위험 신호
+  next         다음 우선순위 제안
+  period       기간 요약(이번 주·지난주·최근 N일 …)
+  overall      전체 진척
 """
 import re
 from datetime import date, timedelta
 
-from .store.db import DONE, NOT_STARTED, PARTIAL, UNDEFINED
-
 CATEGORIES = ("기능", "보안", "데이터", "성능", "품질")
 _NUM = re.compile(r"(?<![A-Za-z]-)(?<![\d.])\d+(?:\.\d+)?")
 _ID = re.compile(r"(?<![A-Za-z0-9])[A-Z]{3}-\d{3}(?!\d)")
+
+_NEXT = re.compile(r"다음에|뭐부터|무엇부터|먼저\s*(해야|할)|우선순위|추천|뭘\s*먼저|어떤\s*걸\s*먼저")
+_RISK = re.compile(r"위험|주의|정체|지연|걱정|문제\s*있")
+_PARTIAL = re.compile(r"부분\s*완료|부분적|일부만")
+_NOT_STARTED = re.compile(r"미착수|시작\s*안|착수\s*안|손\s*안\s*댄")
+_PENDING = re.compile(r"안\s*된|안\s*끝난|미완료|남은\s*요구사항|남아\s*있는|아직|못\s*한|미구현")
+_AUTHOR_HINT = re.compile(r"님|한\s*거|한\s*일|실적|작업한|보고한|담당자")
+_OVERALL = re.compile(r"전체|전반|총|진척률|진행률|현황|얼마나")
+_FOLLOW = re.compile(r"^(그럼|그러면|그건|그거|그\s*중|거기|나머지|이건|이거|저건|그쪽|그\s*요구사항)"
+                     r"|^(남은|충족한|충족된|완료된|안\s*된)\s*(조건|거|것)")
+# 이름 대조에서 빼는 말 — 질문에 흔하지만 요구사항 이름을 가리키지 않는다.
+_STOP = {"기능", "요구사항", "상태", "진행", "상황", "현황", "관련", "구현", "완료", "어떻게", "부분",
+         "개발", "작업", "처리", "관리", "조회", "전체", "진척", "진척률", "진행률", "지금", "현재", "혹시",
+         "그럼", "그러면", "얼마나", "다들", "우리"}
+_PARTICLE = re.compile(r"(쪽은|쪽도|쪽|은|는|이|가|을|를|의|도|만|에서|으로|로|과|와|하고)$")
+_VERB = re.compile(r".*(됐어|했어|났어|됐나|했나|줘|있어|없어|할까|해요|돼요|인가|일까|나요|어요|뭐야|어때)$")
+_CATEGORY_NEXT = re.compile(r"^(요구사항|분류|부문|쪽|관련|항목)")
+_LEAD = re.compile(r"^(그럼|그러면|그리고|혹시)\s*")
+
+
+def find_category(query: str) -> str | None:
+    """분류 이름이 '분류'를 가리킬 때만 고른다. '보안 요구사항', '그럼 보안은?'은 분류지만
+    '결제 기능 끝났어?'의 '기능'은 분류가 아니다(앞말을 꾸미는 낱말)."""
+    tokens = re.findall(r"[가-힣A-Za-z]+", _LEAD.sub("", query.strip()))
+    for i, tok in enumerate(tokens):
+        base = _PARTICLE.sub("", tok)
+        if base not in CATEGORIES:
+            continue
+        nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
+        if i == 0 or base != tok or not nxt or _CATEGORY_NEXT.match(nxt):
+            return base
+    return None
 
 
 # ── 기간 ─────────────────────────────────────────────────────────────────
@@ -37,120 +80,106 @@ def parse_period(query: str, today: date) -> tuple[str, str, str] | None:
     return None
 
 
-# ── 도구 계획 ────────────────────────────────────────────────────────────
-def plan_calls(query: str, route: str, today: date) -> list[dict]:
-    calls = [{"tool": "get_progress", "args": {}}]
-    for rid in list(dict.fromkeys(_ID.findall(query)))[:5]:
-        calls.append({"tool": "get_requirement", "args": {"req_id": rid}})
-    for cat in CATEGORIES:
-        if cat in query:
-            calls.append({"tool": "list_requirements", "args": {"category": cat}})
+# ── 질문 분석 ────────────────────────────────────────────────────────────
+def is_follow_up(query: str) -> bool:
+    """'그럼 보안은?', '남은 조건이 뭐야?'처럼 앞 질문의 대상을 생략한 질문인가."""
+    q = query.strip()
+    return bool(_FOLLOW.search(q)) or (len(q) <= 10 and q.endswith(("은?", "는?", "도?")))
+
+
+def _previous_target(history: list[dict]) -> tuple[list[str], str | None, str | None]:
+    """직전 대화의 대상 — 사용자 질문에서 먼저 찾고, 없으면 직전 답에 나온 고유번호(3개 이하)를 쓴다.
+    '결제 기능 끝났어?'처럼 이름으로 물은 뒤 '남은 조건은?'이라고 이어 물을 때 답에 나온 SFR-018을 쓴다."""
+    users = [m["content"] for m in history if m.get("role") == "user"]
+    bots = [m["content"] for m in history if m.get("role") == "assistant"]
+    prev_q = users[-1] if users else ""
+    ids = list(dict.fromkeys(_ID.findall(prev_q)))
+    if not ids and bots:
+        found = list(dict.fromkeys(_ID.findall(bots[-1])))
+        ids = found if len(found) <= 3 else []
+    return ids, find_category(prev_q), prev_q or None
+
+
+def analyze(query: str, route: str, today: date, history: list[dict] | None = None) -> dict:
+    """질문의 유형·대상·기간. 대상이 없는 후속 질문이면 직전 대화의 대상을 이어받는다."""
+    ids = list(dict.fromkeys(_ID.findall(query)))
+    category = find_category(query)
     period = parse_period(query, today)
-    if route == "summary" and period is None:
-        period = parse_period("이번 주", today)
-    if period:
-        calls.append({"tool": "list_reports", "args": {"since": period[1], "until": period[2], "limit": 50},
-                      "period": period[0]})
+    carried = None
+    if not (ids or category or period) and history and is_follow_up(query):
+        p_ids, p_cat, prev_q = _previous_target(history)
+        if p_ids or p_cat:
+            ids, category, carried = p_ids, p_cat, prev_q
+
+    if route == "summary" or period:
+        intent = "period"
+        period = period or parse_period("이번 주", today)
+    elif ids:
+        intent = "requirement"
+    elif _NEXT.search(query):
+        intent = "next"
+    elif _RISK.search(query):
+        intent = "risks"
+    elif _PARTIAL.search(query) or _NOT_STARTED.search(query) or _PENDING.search(query):
+        intent = "pending"
+    elif category:
+        intent = "category"
+    elif _AUTHOR_HINT.search(query):
+        intent = "author"          # 실제 이름은 조회 결과의 담당자 목록과 대조해 answers에서 확정
+    elif _OVERALL.search(query) and not keywords(query):
+        intent = "overall"
+    else:
+        intent = "lookup"          # 이름으로 묻는 기능일 수 있다 → 요구사항 이름 대조·검색
+    scope = "partial" if _PARTIAL.search(query) else "not_started" if _NOT_STARTED.search(query) else "all"
+    return {"intent": intent, "ids": ids[:5], "category": category, "period": period,
+            "pending_scope": scope, "carried_from": carried}
+
+
+def keywords(query: str) -> list[str]:
+    """요구사항 이름과 대조할 낱말(2자 이상 한글·영문, 조사 제거, 흔한 말 제외)."""
+    out = []
+    for w in re.findall(r"[가-힣A-Za-z]{2,}", query):
+        w = _PARTICLE.sub("", w)
+        if len(w) >= 2 and w not in _STOP and not _VERB.match(w) and \
+                not re.fullmatch(r"(알려|정리|어떻|됐|끝났|했|뭐|있|다음|아직).*", w):
+            out.append(w)
+    return out
+
+
+def match_by_name(query: str, requirements: list[dict], limit: int = 5) -> list[str]:
+    """질문 낱말이 이름에 들어간 요구사항. 여러 낱말이면 더 많이 맞는 것만 남긴다."""
+    words = keywords(query)
+    scored = [(sum(w in r["name"] for w in words), r["id"]) for r in requirements]
+    best = max((s for s, _ in scored), default=0)
+    return [rid for s, rid in scored if s and s == best][:limit] if best else []
+
+
+def plan_calls(target: dict) -> list[dict]:
+    """질문 분석 결과로 부를 MCP Tool을 정한다. 진척 집계(get_progress)는 항상 부른다."""
+    calls = [{"tool": "get_progress", "args": {}}]
+    for rid in target["ids"]:
+        calls.append({"tool": "get_requirement", "args": {"req_id": rid}})
+        calls.append({"tool": "list_reports", "args": {"req_id": rid, "limit": 3}})
+    if target["intent"] == "period":
+        label, since, until = target["period"]
+        calls.append({"tool": "list_reports", "args": {"since": since, "until": until, "limit": 50},
+                      "period": label})
+    if target["intent"] == "author":
+        calls.append({"tool": "list_reports", "args": {"limit": 200}})
     return calls
 
 
-# ── 사실 정리 ────────────────────────────────────────────────────────────
-def build_facts(results: list[dict], query: str = "") -> str:
-    """Tool 결과를 LLM에 줄 '사실' 문단으로 만든다. 답변 검증도 이 문단을 기준으로 한다.
-
-    질문 대상(요구사항·분류·담당자·기간)이 있으면 그 대상의 사실만 넣는다. 전부 넣었더니
-    qwen3:8b가 '보안 진행률' 질문에 전체 수치로 답하고, 기간 요약에 누적 담당자 실적을
-    그 주에 한 일처럼 섞었다."""
-    by_tool = {}
-    for r in results:
-        by_tool.setdefault(r["tool"], []).append(r)
-    req_ids = [r["args"]["req_id"] for r in by_tool.get("get_requirement", [])]
-    category = next((r["args"]["category"] for r in by_tool.get("list_requirements", [])), None)
-    period = next((r for r in by_tool.get("list_reports", [])), None)
-    prog = by_tool["get_progress"][0]["result"] if "get_progress" in by_tool else None
-    authors = [a for a in (prog["by_author"] if prog else []) if a["author"] in query]
-    general = not (req_ids or category or period or authors)
-
-    focus = ([f"요구사항 {', '.join(req_ids)}"] if req_ids else []) + ([f"분류 {category}"] if category else []) \
-        + ([f"담당자 {', '.join(a['author'] for a in authors)}"] if authors else []) \
-        + ([f"기간 {period.get('period')} {period['args']['since']}~{period['args']['until']}"] if period else [])
-    out: list[str] = [f"[질문 대상] {', '.join(focus) if focus else '전체 현황'}"]
-
-    if prog:
-        o, c = prog["overall"], prog["overall"]["counts"]
-        out.append(f"[전체 진척 · 기준일 {prog['as_of']}] 요구사항 {o['requirements']}건 중 "
-                   f"완료 {c[DONE]}건, 부분완료 {c[PARTIAL]}건, 미착수 {c[NOT_STARTED]}건, 조건 미확정 {c[UNDEFINED]}건. "
-                   f"진척률(요구사항 기준) {o['requirement_rate']}%, 진척률(완료 조건 기준) {o['criteria_rate']}% "
-                   f"(충족 {o['criteria_met']}/{o['criteria_total']}개). 반영된 완료 보고 {o['reports']}건.")
-        for g in prog["by_category"]:
-            if general or g["category"] == category:
-                # 요구사항 기준 진척률도 코드가 계산해 이름을 붙여 둔다 — 없으면 모델이 조건 충족률을
-                # '요구사항 기준 진척률'이라고 바꿔 부른다.
-                req_rate = round(100 * g[DONE] / g["total"], 1) if g["total"] else 0.0
-                out.append(f"[분류 {g['category']}] {g['total']}건 중 완료 {g[DONE]}건, 부분완료 {g[PARTIAL]}건, "
-                           f"미착수 {g[NOT_STARTED]}건. 이 분류의 진척률(요구사항 기준) {req_rate}%, "
-                           f"조건 충족률 {g['criteria_rate']}% (충족 {g['criteria_met']}/{g['criteria_total']}개)")
-        for a in (prog["by_author"] if general else authors):
-            out.append(f"[담당자 {a['author']} · 누적] 완료 보고 {a['reports']}건, 처음 충족시킨 조건 {a['criteria_met']}개, "
-                       f"다룬 요구사항 {', '.join(a['requirements'])}")
-        if general:
-            pending = [x for x in prog["requirements"] if x["status"] != DONE]
-            if pending:
-                out.append("[미완료 요구사항] " + "; ".join(
-                    f"{x['id']} {x['name']}({x['status']} {x['met']}/{x['total']})" for x in pending))
-        cat_ids = {x["id"] for x in prog["requirements"] if x["category"] == category}
-        for k in prog["risks"]:
-            ids = set(_ID.findall(k["req_id"]))
-            if general or period or ids & set(req_ids) or ids & cat_ids:
-                out.append(f"[위험 신호] {k['kind']}: {k['req_id']} {k['name']} — {k['detail']}")
-
-    for r in by_tool.get("get_requirement", []):
-        data = r["result"]
-        if "error" in data:
-            out.append(f"[요구사항 {r['args']['req_id']}] 등록되지 않은 고유번호")
-            continue
-        p = data["progress"]
-        crit = "; ".join(f"{'충족' if c['met_by'] else '미충족'} — {c['text']}"
-                         for c in data["criteria"] if c["confirmed"])
-        out.append(f"[요구사항 {data['id']} {data['name']}] 상태 {p['status']}, 충족 {p['met']}/{p['total']}, "
-                   f"남은 조건 {p['total'] - p['met']}개, 완료 보고 {p['report_count']}건"
-                   + (f", 완료일 {p['completed_at'][:10]}" if p["completed_at"] else "")
-                   + f". 조건: {crit or '확정된 조건 없음'}")
-    for r in by_tool.get("list_requirements", []):
-        rows = r["result"]["requirements"]
-        out.append(f"[분류 {r['args']['category']} 요구사항 목록 {len(rows)}건] " + "; ".join(
-            f"{x['id']} {x['name']}({x['status']} {x['met']}/{x['total']})" for x in rows))
-    if period:
-        reps = period["result"]["reports"]
-        out.append(f"[{period.get('period', '기간')} 완료 보고 {len(reps)}건 · "
-                   f"{period['args']['since']}~{period['args']['until']}] (이 기간에 한 일은 아래 보고뿐이다)")
-        # 작성자별 건수도 코드가 세어 둔다 — 모델이 직접 세면 사실에 없는 숫자로 반려된다.
-        per_author: dict[str, int] = {}
-        for rep in reps:
-            per_author[rep["author"]] = per_author.get(rep["author"], 0) + 1
-        if per_author:
-            out.append("  [작성자별 보고 수] " + ", ".join(f"{a} {n}건" for a, n in per_author.items()))
-        for rep in reps:
-            met = ", ".join(f"{l['req_id']} {c['text']}" for l in rep["links"] for c in l["met_criteria"])
-            out.append(f"  - {rep['created_at'][:10]} {rep['author']}: {rep['summary']} "
-                       f"(요구사항 {', '.join(l['req_id'] for l in rep['links'])}; 충족 조건: {met or '없음'})")
-    return "\n".join(out)
-
-
-# ── 답변 검증 ────────────────────────────────────────────────────────────
+# ── 코멘트 검증 ──────────────────────────────────────────────────────────
 _LIST_MARK = re.compile(r"^\s*\d+[.)]\s", re.M)
+_FOREIGN = re.compile(r"[À-ɏḀ-ỿ一-鿿぀-ヿ]+")
+_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+MAX_COMMENT_CHARS = 160
 
 
 def _numbers(text: str) -> set[str]:
     """고유번호 안의 숫자와 줄머리 번호(1. 2))는 빼고, '08'과 '8', '58.60'과 '58.6'을 같게 본다."""
     text = _LIST_MARK.sub(" ", _ID.sub(" ", text))
     return {str(float(n)).rstrip("0").rstrip(".") if "." in n else str(int(n)) for n in _NUM.findall(text)}
-
-
-_FOREIGN = re.compile(r"[\u00C0-\u024F\u1E00-\u1EFF\u4E00-\u9FFF\u3040-\u30FF]+")
-
-
-_DATE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 
 
 def _date_variants(facts: str) -> set[str]:
@@ -162,14 +191,14 @@ def _date_variants(facts: str) -> set[str]:
 
 
 def clean_answer(answer: str) -> str:
-    """사실 문단의 표시용 머리말([질문 대상] 등)이 답에 새어 나오면 지운다."""
-    text = re.sub(r"\[질문 대상\]\s*(?:(?:분류|요구사항|담당자|기간|전체 현황)\s*\S*?(?:의|에|은|는)\s+)?",
-                  "", answer)
-    return re.sub(r"^(?:(?:에\s*)?따르면,?\s*|(?:에|의|은|는)\s+)", "", text.strip(), flags=re.M).strip()
+    """모델이 붙이는 머리말('코멘트:', '따르면,')과 앞뒤 따옴표를 지운다."""
+    text = re.sub(r"^\s*(?:코멘트|덧붙임|참고)\s*[:：]\s*", "", answer.strip())
+    text = re.sub(r"^(?:(?:에\s*)?따르면,?\s*)", "", text, flags=re.M)
+    return text.strip().strip('"').strip()
 
 
 def check_answer(answer: str, facts: str, query: str) -> list[str]:
-    """답변 속 숫자·고유번호가 사실(또는 질문)에 있는지, 외국어 문자가 섞였는지 본다."""
+    """글 속 숫자·고유번호가 사실(또는 질문)에 있는지, 외국어 문자가 섞였는지 본다."""
     problems = []
     foreign = sorted(set(_FOREIGN.findall(answer)))
     if foreign:   # qwen3가 'chưa'(베트남어) 같은 토큰을 섞은 적이 있다
@@ -180,30 +209,63 @@ def check_answer(answer: str, facts: str, query: str) -> list[str]:
     allowed = _numbers(facts) | _numbers(query) | _date_variants(facts)
     for n in sorted(_numbers(answer) - allowed, key=lambda x: float(x)):
         problems.append(f"사실에 없는 숫자 {n}")
-    if not answer.strip():
-        problems.append("빈 답변")
     return problems
 
 
-# ── 안전한 대체 답변 ─────────────────────────────────────────────────────
-def fallback_answer(results: list[dict]) -> str:
-    """LLM 답이 끝내 검증을 통과하지 못하면, 조회 결과로 코드가 직접 쓴 답을 준다."""
-    lines = []
-    for r in results:
-        if r["tool"] == "get_requirement" and "error" not in r["result"]:
-            d = r["result"]
-            p = d["progress"]
-            left = [c["text"] for c in d["criteria"] if c["confirmed"] and not c["met_by"]]
-            lines.append(f"{d['id']} {d['name']}: {p['status']} ({p['met']}/{p['total']})"
-                         + (f". 남은 조건: {', '.join(left)}" if left else ""))
-        elif r["tool"] == "list_reports":
-            reps = r["result"]["reports"]
-            lines.append(f"{r.get('period', '기간')} 완료 보고 {len(reps)}건: " + "; ".join(
-                f"{x['author']} — {x['summary']}" for x in reps[:10]) if reps else f"{r.get('period', '기간')} 완료 보고 없음")
-    prog = next((r["result"] for r in results if r["tool"] == "get_progress"), None)
-    if prog and not lines:
-        o = prog["overall"]
-        lines.append(f"전체 {o['requirements']}건 중 완료 {o['counts'][DONE]}건, 부분완료 {o['counts'][PARTIAL]}건, "
-                     f"미착수 {o['counts'][NOT_STARTED]}건입니다. 진척률은 요구사항 기준 {o['requirement_rate']}%, "
-                     f"완료 조건 기준 {o['criteria_rate']}%입니다.")
-    return "\n".join(lines) or "조회된 정보가 없습니다."
+_STATUS_WORDS = ("부분완료", "미착수", "완료")
+_PRIORITY_CLAIM = re.compile(r"우선순위\s*'?(상|중|하)")
+
+
+def _core_facts(core: str) -> dict[str, dict]:
+    """본문 각 줄에서 고유번호별 상태·우선순위를 읽는다(그 고유번호가 처음 나온 줄 기준)."""
+    out: dict[str, dict] = {}
+    for line in core.splitlines():
+        for rid in _ID.findall(line):
+            if rid in out:
+                continue
+            status = next((w for w in _STATUS_WORDS if w in line), None)
+            pri = _PRIORITY_CLAIM.search(line)
+            out[rid] = {"status": status, "priority": pri.group(1) if pri else None}
+    return out
+
+
+def check_claims(comment: str, core: str) -> list[str]:
+    """코멘트가 고유번호에 붙인 우선순위·상태가 본문과 같은지 본다. qwen3:8b가 '우선순위 상인
+    SFR-018, SER-003, SFR-004'처럼 '중'인 SFR-004를 '상'으로 묶은 적이 있다."""
+    facts, problems = _core_facts(core), []
+    for sentence in re.split(r"(?<=[.!?다])\s+", comment):
+        ids = [i for i in _ID.findall(sentence) if i in facts]
+        claim = _PRIORITY_CLAIM.search(sentence)
+        for rid in ids:
+            f = facts[rid]
+            if claim and f["priority"] and f["priority"] != claim.group(1):
+                problems.append(f"{rid}의 우선순위는 '{f['priority']}'인데 '{claim.group(1)}'로 씀")
+            said = next((w for w in _STATUS_WORDS if w in sentence), None)
+            if said and f["status"] and len(ids) == 1 and said != f["status"]:
+                problems.append(f"{rid}의 상태는 '{f['status']}'인데 '{said}'로 씀")
+    return problems
+
+
+def needs_comment(target: dict, core: str) -> bool:
+    """LLM 코멘트는 요구사항 하나·몇 건을 묻는 질문(남은 조건에 대한 조언)과 기간 요약(한 주 흐름)에만
+    붙인다. 실측(qwen3:8b)에서 집계·목록 답에 붙인 코멘트는 '보안이 가장 낮다'(실제는 기능),
+    이미 완료된 요구사항을 '남은'이라 부르기 등 해석이 자주 틀렸다 — 그런 답의 해석(가장 많이 남은
+    분류, 다음 우선순위)은 본문에서 코드가 계산한다. 다 끝났거나 찾지 못한 경우에도 붙이지 않는다."""
+    if "등록되지 않은" in core or "찾지 못했습니다" in core:
+        return False
+    intent = target.get("intent")
+    if intent in ("requirement", "lookup"):
+        return bool(re.search(r"부분완료|미착수|조건 미확정", core))
+    return intent == "period"
+
+
+def check_comment(comment: str, core: str, query: str) -> list[str]:
+    """본문 뒤에 붙일 코멘트 검증. 빈 코멘트는 통과(덧붙일 말이 없을 수 있다)."""
+    if not comment.strip():
+        return []
+    problems = check_answer(comment, core, query) + check_claims(comment, core)
+    if len(comment) > MAX_COMMENT_CHARS:
+        problems.append(f"너무 김({len(comment)}자, {MAX_COMMENT_CHARS}자 이내로)")
+    if "\n-" in comment or comment.lstrip().startswith("-"):
+        problems.append("목록을 쓰지 말고 문장으로만")
+    return problems

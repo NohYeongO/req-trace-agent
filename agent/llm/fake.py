@@ -64,24 +64,24 @@ class FakeLLM:
             links.append({"req_id": "ZZZ-999", "met": [1], "reason": "지어낸 매핑"})
         return links, self._usage(text, str(links))
 
-    @traceable(run_type="llm", name="fake.answer_status")
-    async def answer_status(self, query: str, facts: str, mode: str, feedback: str | None = None,
-                            on_token=None) -> tuple[str, dict]:
-        """사실 문단에서 질문과 관련된 줄을 골라 그대로 옮긴다. 검증 루프를 재현하기 위해, 반려
-        사유 없이 처음 쓸 때 질문의 고유번호가 '9'로 끝나면 사실에 없는 수치를 섞는다."""
+    @traceable(run_type="llm", name="fake.comment")
+    async def comment(self, query: str, core: str, feedback: str | None = None,
+                      on_token=None) -> tuple[str, dict]:
+        """본문 상태에 맞춘 고정 코멘트. 검증 루프를 재현하기 위해, 반려 사유 없이 처음 쓸 때
+        질문의 고유번호가 '9'로 끝나면 본문에 없는 수치를 섞는다."""
         ids = re.findall(r"[A-Z]{3}-\d{3}", query)
-        lines = [l.strip(" -") for l in facts.splitlines() if l.strip()]
-        picked = [l for l in lines if any(i in l for i in ids)] if ids else []
-        if not picked:
-            keys = ("완료 보고",) if mode == "summary" else ("전체 진척",)
-            picked = [l for l in lines if any(k in l for k in keys)] or lines[:1]
-        reply = "\n".join(picked[:8]) or "확인된 정보가 없습니다."
+        if "부분완료" in core:
+            reply = "남은 조건을 마무리하면 완료로 바뀝니다."
+        elif "미착수" in core:
+            reply = "미착수 항목은 우선순위가 높은 것부터 착수하시길 권합니다."
+        else:
+            reply = ""
         if feedback is None and any(i.endswith("9") for i in ids):
-            reply += "\n참고로 전체 진척률은 99.9%입니다."
+            reply += " 참고로 전체 진척률은 99.9%입니다."
         for piece in reply.split(" "):
-            if on_token is not None:
+            if on_token is not None and piece:
                 on_token(piece + " ")
-        return reply, self._usage(facts[:2000], reply)
+        return reply.strip(), self._usage(core[:2000], reply)
 
     @traceable(run_type="llm", name="fake.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:
