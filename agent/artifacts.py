@@ -206,6 +206,41 @@ class ArtifactChecker:
                         "path": self._rel(src)}
         return out
 
+    def source_spec(self) -> dict:
+        """개발 명세서용 소스 분석 — 엔티티(+DDL 대조), 컨트롤러 상세, 요청·응답 DTO. HEAD가 같으면 캐시."""
+        from dataclasses import asdict
+
+        from .deliverables import java_source as js
+        self.refresh()
+        if self.root is None:
+            return {"error": "근거 확인 대상(공용 저장소 또는 로컬 폴더)이 설정되지 않았습니다."}
+
+        def build():
+            main = [p for p in self._code_files(False) if p.suffix == ".java" and "test" not in self._rel(p).lower()]
+            ents = [e for p in main if (e := js.parse_entity(self._source(p), self._rel(p)))]
+            ents = sorted(js.resolve_inheritance(ents), key=lambda e: e.table)
+            ddl, ddl_files = {}, []
+            for p in self.files:
+                if p.suffix.lower() == ".sql":
+                    found = js.parse_ddl(self._source(p))
+                    if found:
+                        ddl.update(found)
+                        ddl_files.append(self._rel(p))
+            endpoints = [ep for p in sorted(main, key=self._rel) if "Controller" in p.name
+                         for ep in js.parse_controller_detail(self._source(p), self._rel(p))]
+            wanted = {js.inner_type(ep["body"]) for ep in endpoints} | {js.inner_type(ep["returns"]) for ep in endpoints}
+            dtos = {}
+            for p in main:
+                if p.stem in wanted:
+                    d = js.parse_dto(self._source(p))
+                    if d:
+                        dtos[d["name"]] = {**d, "path": self._rel(p)}
+            tables = {e.table for e in ents}
+            return {"entities": [{**asdict(e), "issues": js.compare(e, ddl.get(e.table)) if ddl else []} for e in ents],
+                    "ddl": ddl, "ddl_files": ddl_files, "ddl_only": sorted(t for t in ddl if t not in tables),
+                    "endpoints": endpoints, "dtos": dtos}
+        return {**self._cached("source_spec", build), "artifact": self.status()}
+
     def check(self, items: list[dict]) -> list[dict]:
         self.refresh()
         out = []
