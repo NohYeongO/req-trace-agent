@@ -51,6 +51,12 @@ class Settings:
     # 근거(파일·API·테스트) 실존 확인 대상 산출물. 데모는 sh/fetch_artifacts.sh로 받는다.
     artifact_root: Path | None = field(default_factory=lambda: _optional_path(
         "ARTIFACT_ROOT", DATA_DIR / "artifacts" / "spring-petclinic-rest"))
+    # 공용 Git 저장소(우선). 지정하면 확인할 때마다 납품 브랜치를 fetch해 푸시된 코드만 근거로 본다.
+    artifact_repo_url: str = field(default_factory=lambda: _env("ARTIFACT_REPO_URL", ""))
+    artifact_branch: str = field(default_factory=lambda: _env("ARTIFACT_BRANCH", "main"))
+    repo_cache_dir: Path = field(default_factory=lambda: _path("REPO_CACHE_DIR", DATA_DIR / "repos"))
+    repo_fetch_interval: float = field(default_factory=lambda: float(_env("REPO_FETCH_INTERVAL", "60")))
+    github_token: str = field(default_factory=lambda: _env("GITHUB_TOKEN", ""))
     glossary_file: Path = field(default_factory=lambda: _path(
         "GLOSSARY_FILE", DATA_DIR / "glossary" / "standard_terms.json"))
     # 요구사항 검색 임베더: fake 백엔드는 해시(네트워크 없음), 실모델은 Ollama bge-m3
