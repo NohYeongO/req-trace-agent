@@ -118,7 +118,10 @@ async def health():
             "llm_backend": deps.settings.llm_backend,
             "fast_llm": deps.fast_llm.name, "quality_llm": deps.quality_llm.name,
             "mcp_servers": list(deps.mcp.sessions),
-            "artifact_root": str(deps.settings.artifact_root) if deps.settings.artifact_root else None,
+            "artifact_repo": deps.settings.artifact_repo_url or None,
+            "artifact_branch": deps.settings.artifact_branch if deps.settings.artifact_repo_url else None,
+            "artifact_root": (str(deps.settings.artifact_root)
+                              if deps.settings.artifact_root and not deps.settings.artifact_repo_url else None),
             "counts": deps.store.counts()}
 
 
