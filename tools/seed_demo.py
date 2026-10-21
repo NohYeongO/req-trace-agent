@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv   # noqa: E402
 
-from agent.artifacts import ArtifactChecker              # noqa: E402
+from agent.artifacts import ArtifactChecker, make_checker  # noqa: E402
 from agent.config import DATA_DIR, get_settings          # noqa: E402
 from agent.evidence import extract_evidence              # noqa: E402
 from agent.requirements import load_requirements_file    # noqa: E402
@@ -63,10 +63,11 @@ def seed_reports(store: ProjectStore, checker: ArtifactChecker, force: bool) -> 
 
 
 def seed(store: ProjectStore, force: bool = False, reports: bool = True,
-         artifact_root: Path | None = None) -> dict:
+         checker: ArtifactChecker | None = None) -> dict:
+    """checker를 주지 않으면 근거 확인 대상이 없는 것으로 보고 '확인 불가'로 저장한다."""
     result = seed_criteria(store, force)
     if reports:
-        result.update(seed_reports(store, ArtifactChecker(artifact_root), force))
+        result.update(seed_reports(store, checker or ArtifactChecker(None), force))
     return result
 
 
@@ -78,6 +79,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     settings = get_settings()
     s = ProjectStore(settings.db_path)
-    result = seed(s, args.force, not args.no_reports, settings.artifact_root)
+    # 근거 확인은 설정을 따른다 — 공용 저장소(ARTIFACT_REPO_URL)가 있으면 그 저장소를 fetch해 확인
+    result = seed(s, args.force, not args.no_reports, make_checker(settings))
     print(json.dumps({**result, "db": str(s.path), "counts": s.counts()}, ensure_ascii=False, indent=2))
     s.close()
