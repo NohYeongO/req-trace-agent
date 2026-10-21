@@ -62,6 +62,11 @@ class Settings:
     intake_top_k: int = field(default_factory=lambda: int(_env("INTAKE_TOP_K", "8")))
     # 매핑이 검증에서 반려되면 다시 매핑하는 횟수
     intake_retries: int = field(default_factory=lambda: int(_env("INTAKE_RETRIES", "2")))
+    # ── 현황 질의응답 ──
+    # 답변 수치 검증에서 반려되면 다시 쓰게 하는 횟수. 넘으면 코드가 쓴 답으로 대체한다.
+    qa_retries: int = field(default_factory=lambda: int(_env("QA_RETRIES", "2")))
+    # '이번 주' 같은 기간 해석의 기준일을 고정할 때(데모·테스트). 비우면 오늘.
+    fixed_today: str = field(default_factory=lambda: _env("FIXED_TODAY", ""))
 
 
 def _optional_path(env: str, default: Path) -> Path | None:
