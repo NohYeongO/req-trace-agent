@@ -1,0 +1,346 @@
+{
+  "summary": {
+    "backend": "ollama",
+    "model": "ollama:qwen3:8b",
+    "embedder": "ollama",
+    "reports": 19,
+    "requirement_precision": 0.947,
+    "requirement_recall": 0.818,
+    "criteria_precision": 0.919,
+    "criteria_recall": 0.829,
+    "exact_match": 0.789,
+    "mapping_retries": 2,
+    "avg_seconds": 9.4
+  },
+  "rows": [
+    {
+      "date": "2026-10-01",
+      "want": {
+        "SFR-001": [
+          1,
+          2
+        ]
+      },
+      "got": {
+        "SFR-001": [
+          1,
+          2
+        ]
+      },
+      "exact": true,
+      "seconds": 14.1
+    },
+    {
+      "date": "2026-10-02",
+      "want": {
+        "SFR-002": [
+          3,
+          4
+        ]
+      },
+      "got": {
+        "SFR-002": [
+          3,
+          4
+        ]
+      },
+      "exact": true,
+      "seconds": 7.4
+    },
+    {
+      "date": "2026-10-03",
+      "want": {
+        "SFR-003": [
+          5,
+          6
+        ],
+        "SFR-004": [
+          7,
+          8
+        ]
+      },
+      "got": {},
+      "exact": false,
+      "seconds": 22.3
+    },
+    {
+      "date": "2026-10-05",
+      "want": {
+        "SFR-012": [
+          23,
+          24,
+          25,
+          26
+        ]
+      },
+      "got": {
+        "SFR-012": [
+          23,
+          24,
+          25,
+          26
+        ]
+      },
+      "exact": true,
+      "seconds": 9.2
+    },
+    {
+      "date": "2026-10-06",
+      "want": {
+        "SFR-005": [
+          9
+        ]
+      },
+      "got": {
+        "SFR-005": [
+          9
+        ]
+      },
+      "exact": true,
+      "seconds": 7.4
+    },
+    {
+      "date": "2026-10-07",
+      "want": {
+        "SFR-010": [
+          19,
+          20
+        ]
+      },
+      "got": {
+        "SFR-010": [
+          19
+        ]
+      },
+      "exact": false,
+      "seconds": 7.7
+    },
+    {
+      "date": "2026-10-08",
+      "want": {
+        "SFR-006": [
+          11,
+          12
+        ],
+        "SFR-007": [
+          13
+        ],
+        "SFR-008": [
+          14
+        ]
+      },
+      "got": {
+        "SFR-006": [
+          11,
+          12
+        ],
+        "SFR-002": [
+          3,
+          4
+        ]
+      },
+      "exact": false,
+      "seconds": 10.5
+    },
+    {
+      "date": "2026-10-09",
+      "want": {
+        "QUR-001": [
+          59,
+          60
+        ]
+      },
+      "got": {
+        "QUR-001": [
+          59,
+          60
+        ]
+      },
+      "exact": true,
+      "seconds": 7.8
+    },
+    {
+      "date": "2026-10-10",
+      "want": {
+        "SFR-011": [
+          21
+        ]
+      },
+      "got": {
+        "SFR-011": [
+          21
+        ]
+      },
+      "exact": true,
+      "seconds": 8.4
+    },
+    {
+      "date": "2026-10-12",
+      "want": {
+        "SER-001": [
+          44,
+          45,
+          46
+        ]
+      },
+      "got": {
+        "SER-001": [
+          44,
+          45,
+          46
+        ]
+      },
+      "exact": true,
+      "seconds": 11.3
+    },
+    {
+      "date": "2026-10-13",
+      "want": {
+        "SFR-009": [
+          15,
+          16,
+          17,
+          18
+        ]
+      },
+      "got": {
+        "SFR-009": [
+          15,
+          16,
+          17,
+          18
+        ]
+      },
+      "exact": true,
+      "seconds": 9.3
+    },
+    {
+      "date": "2026-10-14",
+      "want": {
+        "SFR-015": [
+          32,
+          33
+        ]
+      },
+      "got": {
+        "SFR-015": [
+          32,
+          33
+        ]
+      },
+      "exact": true,
+      "seconds": 8.4
+    },
+    {
+      "date": "2026-10-15",
+      "want": {
+        "SER-002": []
+      },
+      "got": {
+        "SER-002": [
+          47
+        ]
+      },
+      "exact": false,
+      "seconds": 6.8
+    },
+    {
+      "date": "2026-10-16",
+      "want": {
+        "SFR-016": [
+          34,
+          35
+        ]
+      },
+      "got": {
+        "SFR-016": [
+          34,
+          35
+        ]
+      },
+      "exact": true,
+      "seconds": 8.8
+    },
+    {
+      "date": "2026-10-17",
+      "want": {
+        "DAR-001": [
+          54,
+          55
+        ]
+      },
+      "got": {
+        "DAR-001": [
+          54,
+          55
+        ]
+      },
+      "exact": true,
+      "seconds": 9.2
+    },
+    {
+      "date": "2026-10-17",
+      "want": {
+        "SFR-020": [
+          42,
+          43
+        ]
+      },
+      "got": {
+        "SFR-020": [
+          42,
+          43
+        ]
+      },
+      "exact": true,
+      "seconds": 8.5
+    },
+    {
+      "date": "2026-10-18",
+      "want": {
+        "PER-001": [
+          57
+        ]
+      },
+      "got": {
+        "PER-001": [
+          57
+        ]
+      },
+      "exact": true,
+      "seconds": 6.4
+    },
+    {
+      "date": "2026-10-19",
+      "want": {
+        "QUR-002": [
+          61,
+          62
+        ]
+      },
+      "got": {
+        "QUR-002": [
+          61,
+          62
+        ]
+      },
+      "exact": true,
+      "seconds": 7.9
+    },
+    {
+      "date": "2026-10-19",
+      "want": {
+        "SFR-011": [
+          22
+        ]
+      },
+      "got": {
+        "SFR-011": [
+          22
+        ]
+      },
+      "exact": true,
+      "seconds": 6.8
+    }
+  ]
+}

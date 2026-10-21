@@ -1,0 +1,230 @@
+{
+  "project": "제로파이브 스토어 온라인 쇼핑몰 구축 사업 (데모)",
+  "source_note": "과기정통부「SW사업 요구사항 상세화 가이드」의 분류·고유번호 체계로 작성한 데모 요구사항. 산출물은 https://github.com/NohYeongO/zerofive-store (main) 이다. 상품 API(Mock), 실결제 연동, 환불·리뷰·배송 조회, 관리자 권한 제어 등은 의도적으로 미구현 상태로 둔다.",
+  "requirements": [
+    {
+      "id": "SFR-001",
+      "category": "기능",
+      "name": "회원가입",
+      "description": "이메일, 비밀번호, 이름으로 회원 가입하며 이미 사용 중인 이메일로는 가입할 수 없다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-002",
+      "category": "기능",
+      "name": "로그인",
+      "description": "이메일과 비밀번호로 로그인하면 인증 토큰을 발급하며, 정보가 틀리면 로그인을 거부한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-003",
+      "category": "기능",
+      "name": "내 정보 조회",
+      "description": "로그인한 회원은 자신의 계정 정보를 조회할 수 있다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-004",
+      "category": "기능",
+      "name": "배송지 관리",
+      "description": "회원은 배송지를 등록·수정·삭제하고, 기본 배송지를 우선으로 배송지 목록을 조회할 수 있다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-005",
+      "category": "기능",
+      "name": "상품 목록 조회",
+      "description": "등록된 상품 목록을 페이지 단위로 조회하고 카테고리로 필터링할 수 있다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-006",
+      "category": "기능",
+      "name": "상품 상세 조회",
+      "description": "상품 ID로 상품명, 가격, 재고 등 상세 정보를 조회한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-007",
+      "category": "기능",
+      "name": "상품 검색",
+      "description": "키워드로 상품을 검색할 수 있다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-008",
+      "category": "기능",
+      "name": "인기 상품 조회",
+      "description": "판매량 기준 인기 상품 목록을 제공한다.",
+      "priority": "하"
+    },
+    {
+      "id": "SFR-009",
+      "category": "기능",
+      "name": "장바구니 담기",
+      "description": "상품을 장바구니에 담으며, 이미 담긴 상품은 수량을 더한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-010",
+      "category": "기능",
+      "name": "장바구니 관리",
+      "description": "장바구니를 조회하고 담긴 상품의 수량 변경·삭제를 할 수 있다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-011",
+      "category": "기능",
+      "name": "쿠폰 등록",
+      "description": "관리자는 쿠폰명, 할인 금액, 유형, 발급 수량을 정해 쿠폰을 등록한다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-012",
+      "category": "기능",
+      "name": "쿠폰 발급",
+      "description": "회원은 쿠폰을 발급받을 수 있으며, 수량이 소진되었거나 이미 받은 쿠폰은 발급하지 않는다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-013",
+      "category": "기능",
+      "name": "보유 쿠폰 조회",
+      "description": "회원은 보유한 쿠폰 목록을 조회하며, 주문 시에는 사용했거나 만료된 쿠폰을 제외한다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-014",
+      "category": "기능",
+      "name": "이벤트 쿠폰 대기열",
+      "description": "이벤트 쿠폰은 대기열에 진입해 순번을 확인하고, 입장 허용된 회원만 선착순으로 발급받는다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-015",
+      "category": "기능",
+      "name": "이벤트 대기열 운영",
+      "description": "관리자는 이벤트 대기열과 쿠폰 발급을 활성화·비활성화하고 입장 임계치를 조회·변경한다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-016",
+      "category": "기능",
+      "name": "주문 생성",
+      "description": "주문 시 재고를 선점하는 주문 세션을 만들고, 사용 가능한 쿠폰과 배송지를 함께 제공한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-017",
+      "category": "기능",
+      "name": "주문 세션 유지·취소",
+      "description": "주문 세션은 폴링으로 유지되고, 취소하거나 1분 이상 응답이 없으면 선점한 재고를 복구한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-018",
+      "category": "기능",
+      "name": "결제 처리",
+      "description": "쿠폰 할인을 적용하고 결제 대행사(PG) 승인을 받아 주문을 확정하며, 결제에 실패하면 사용한 쿠폰을 복구한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-019",
+      "category": "기능",
+      "name": "주문 내역 조회",
+      "description": "회원은 자신의 주문 목록과 주문 상세를 조회할 수 있다.",
+      "priority": "중"
+    },
+    {
+      "id": "SFR-020",
+      "category": "기능",
+      "name": "결제 후 주문 취소·환불",
+      "description": "결제 완료된 주문을 취소하면 결제를 환불하고 재고를 복구한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SFR-021",
+      "category": "기능",
+      "name": "상품 리뷰",
+      "description": "구매한 상품에 리뷰와 별점을 작성할 수 있다.",
+      "priority": "하"
+    },
+    {
+      "id": "SFR-022",
+      "category": "기능",
+      "name": "배송 조회",
+      "description": "주문의 배송 상태를 조회할 수 있다.",
+      "priority": "중"
+    },
+    {
+      "id": "SER-001",
+      "category": "보안",
+      "name": "비밀번호 암호화 저장",
+      "description": "비밀번호는 일방향 해시(BCrypt 등)로 암호화해 저장한다.",
+      "priority": "상"
+    },
+    {
+      "id": "SER-002",
+      "category": "보안",
+      "name": "토큰 기반 인증",
+      "description": "회원가입·로그인 외 API는 유효한 인증 토큰이 있어야 호출할 수 있으며, 서버에 세션을 두지 않는다.",
+      "priority": "상"
+    },
+    {
+      "id": "SER-003",
+      "category": "보안",
+      "name": "관리자 권한 제어",
+      "description": "쿠폰 등록과 이벤트 운영 API는 관리자 권한을 가진 사용자만 호출할 수 있다.",
+      "priority": "상"
+    },
+    {
+      "id": "PER-001",
+      "category": "성능",
+      "name": "이벤트 대기열 동시성",
+      "description": "다수의 동시 요청에도 대기열 중복 진입과 쿠폰 초과 발급이 없어야 하며, 1,000명 동시 요청 부하 테스트로 확인한다.",
+      "priority": "상"
+    },
+    {
+      "id": "PER-002",
+      "category": "성능",
+      "name": "재고 동시성",
+      "description": "동시 주문에도 재고가 음수가 되지 않아야 하며, 여러 상품 주문 시 교착 상태 없이 처리하고 부하 테스트로 확인한다.",
+      "priority": "상"
+    },
+    {
+      "id": "DAR-001",
+      "category": "데이터",
+      "name": "쿠폰 중복 발급 방지",
+      "description": "한 회원에게 같은 쿠폰이 두 번 저장되지 않도록 캐시와 데이터베이스 제약으로 이중 방어한다.",
+      "priority": "중"
+    },
+    {
+      "id": "DAR-002",
+      "category": "데이터",
+      "name": "생성·수정 이력 기록",
+      "description": "모든 엔티티에 생성 일시와 수정 일시를 자동 기록한다.",
+      "priority": "하"
+    },
+    {
+      "id": "QUR-001",
+      "category": "품질",
+      "name": "API 명세 제공",
+      "description": "전체 REST API를 Swagger(OpenAPI)로 문서화해 제공한다.",
+      "priority": "중"
+    },
+    {
+      "id": "QUR-002",
+      "category": "품질",
+      "name": "공통 응답·오류 형식",
+      "description": "API 응답과 오류를 공통 형식으로 일관되게 반환한다.",
+      "priority": "중"
+    },
+    {
+      "id": "QUR-003",
+      "category": "품질",
+      "name": "성능 모니터링",
+      "description": "부하 테스트 결과와 주문 처리 지표를 모니터링 대시보드로 확인할 수 있다.",
+      "priority": "하"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
-"""데모 데이터 시드 — 요구사항 29건, 담당자가 확정한 완료 조건, 개발자 3명의 완료 보고 19건.
+"""데모 데이터 시드 — 커머스(zerofive-store) 요구사항 32건, 담당자가 확정한 완료 조건,
+가상 담당자 3명의 완료 보고 11건(실제 PR #1~#10 기준).
 
 LLM 없이 바로 화면(요구사항·완료 보고·이후 대시보드)을 확인하기 위한 도구다. 보고는 개발자가
 확인을 마친 상태(data/demo/reports.json의 expected 매핑)로 넣고, 근거 실존 확인 결과도 함께
@@ -29,7 +30,7 @@ DEMO = DATA_DIR / "demo"
 
 
 def seed_criteria(store: ProjectStore, force: bool) -> dict:
-    loaded = load_requirements_file(DATA_DIR / "requirements" / "petclinic_requirements.json")
+    loaded = load_requirements_file(DATA_DIR / "requirements" / "zerofive_requirements.json")
     diff = store.upsert_requirements(loaded.requirements)
     criteria = json.loads((DEMO / "criteria.json").read_text(encoding="utf-8"))["criteria"]
     confirmed, skipped = [], []
