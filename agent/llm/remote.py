@@ -97,6 +97,13 @@ class RemoteLLM:
                               "reason": str(l.get("reason", ""))[:200]})
         return links, usage
 
+    @traceable(run_type="llm", name="llm.write_section")
+    async def write_section(self, kind: str, facts: str, feedback: str | None = None,
+                            on_token=None) -> tuple[str, dict]:
+        """검수 산출물의 서술 섹션(failure_analysis | opinion)."""
+        system = prompts.FAILURE_ANALYSIS_SYSTEM if kind == "failure_analysis" else prompts.TEST_OPINION_SYSTEM
+        return await self._stream(system, prompts.render_deliverable_input(facts, feedback), on_token)
+
     @traceable(run_type="llm", name="llm.comment")
     async def comment(self, query: str, core: str, feedback: str | None = None,
                       on_token=None) -> tuple[str, dict]:
