@@ -23,7 +23,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(project_name="테스트 사업", db_path=tmp_path / "req_trace.db", fixed_today="2026-10-20",
+    return Settings(project_name="테스트 사업", db_path=tmp_path / "req_trace.db", fixed_today="2026-03-10",
                     session_db_path=tmp_path / "session.db", output_dir=tmp_path / "out",
                     llm_backend="fake", artifact_root=FIXTURES / "mini_artifact",
                     glossary_file=DATA_DIR / "glossary" / "standard_terms.json",

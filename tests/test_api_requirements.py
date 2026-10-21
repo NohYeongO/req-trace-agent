@@ -24,16 +24,16 @@ def _upload(client, path):
 
 
 def test_upload_list_draft_confirm_flow(client):
-    r = _upload(client, DATA_DIR / "requirements" / "petclinic_requirements.xlsx")
+    r = _upload(client, DATA_DIR / "requirements" / "zerofive_requirements.xlsx")
     assert r.status_code == 200
     body = r.json()
-    assert len(body["added"]) == 29 and body["warnings"] == []
+    assert len(body["added"]) == 32 and body["warnings"] == []
 
-    again = _upload(client, DATA_DIR / "requirements" / "petclinic_requirements.xlsx").json()
-    assert again["added"] == [] and len(again["unchanged"]) == 29
+    again = _upload(client, DATA_DIR / "requirements" / "zerofive_requirements.xlsx").json()
+    assert again["added"] == [] and len(again["unchanged"]) == 32
 
     sec = client.get("/requirements", params={"category": "보안"}).json()["requirements"]
-    assert [x["id"] for x in sec] == ["SER-001", "SER-002", "SER-003", "SER-004"]
+    assert [x["id"] for x in sec] == ["SER-001", "SER-002", "SER-003"]
 
     with client.stream("GET", "/criteria/draft/stream", params={"req_ids": "SFR-005,SFR-009"}) as s:
         events = [json.loads(l[6:]) for l in s.iter_lines() if l.startswith("data: {")]
@@ -46,11 +46,11 @@ def test_upload_list_draft_confirm_flow(client):
     assert detail["criteria_state"] == "draft"
     assert all("beyond_source" in c for c in detail["criteria"])
     items = [{"id": c["id"], "text": c["text"]} for c in detail["criteria"]]
-    items[0]["text"] = "성(last name)으로 보호자를 검색할 수 있다"
+    items[0]["text"] = "등록된 상품을 페이지 단위로 조회할 수 있다"
     ok = client.put("/requirements/SFR-005/criteria", json={"criteria": items, "confirm": True})
     assert ok.status_code == 200 and ok.json()["criteria_state"] == "confirmed"
     assert ok.json()["criteria"][0]["origin"] == "human"
-    assert client.get("/health").json()["counts"]["requirements"] == 29
+    assert client.get("/health").json()["counts"]["requirements"] == 32
 
 
 def test_upload_and_edit_errors(client):

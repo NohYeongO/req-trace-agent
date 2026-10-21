@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 def client(tmp_path, monkeypatch):
     for k, v in {"LLM_BACKEND": "fake", "DB_PATH": str(tmp_path / "req_trace.db"),
                  "SESSION_DB_PATH": str(tmp_path / "session.db"), "INDEX_CACHE_DIR": str(tmp_path / "idx"),
-                 "FIXED_TODAY": "2026-10-20", "LANGCHAIN_TRACING_V2": "false"}.items():
+                 "FIXED_TODAY": "2026-03-10", "LANGCHAIN_TRACING_V2": "false"}.items():
         monkeypatch.setenv(k, v)
     import server
     from tools.seed_demo import seed
@@ -31,26 +31,26 @@ def test_status_stream_shows_agent_steps(client):
 
 
 def test_report_via_chat_then_confirm(client):
-    r = client.post("/chat", json={"message": "수의사 관리 API 전부 끝냈습니다. 수의사를 등록할 수 있다.",
+    r = client.post("/chat", json={"message": "쿠폰 등록 API 끝냈습니다. 쿠폰명·할인 금액·유형·발급 수량으로 쿠폰을 등록할 수 있다.",
                                    "thread_id": "b", "author": "이서연"}).json()
     assert r["metadata"]["route"] == "report" and r["run_id"] and r["confirm"]["links"]
-    link = next(l for l in r["confirm"]["links"] if l["req_id"] == "SFR-012")
+    link = next(l for l in r["confirm"]["links"] if l["req_id"] == "SFR-011")
     met = [c["id"] for c in link["criteria"] if c["met"]]
     before = client.get("/reports").json()["reports"][0]["id"]
     done = client.post(f"/reports/{r['run_id']}/confirm",
-                       json={"decision": "confirm", "links": [{"req_id": "SFR-012", "met_criteria": met}]})
+                       json={"decision": "confirm", "links": [{"req_id": "SFR-011", "met_criteria": met}]})
     assert done.status_code == 200
     latest = client.get("/reports").json()["reports"][0]
     assert latest["id"] > before and latest["author"] == "이서연"
 
 
 def test_report_via_chat_needs_author(client):
-    r = client.post("/chat", json={"message": "수의사 관리 API 끝냈습니다.", "thread_id": "c"}).json()
+    r = client.post("/chat", json={"message": "쿠폰 등록 API 끝냈습니다.", "thread_id": "c"}).json()
     assert r["metadata"]["route"] == "report"
     bad = client.post(f"/reports/{r['run_id']}/confirm",
-                      json={"decision": "confirm", "links": [{"req_id": "SFR-012", "met_criteria": []}]})
+                      json={"decision": "confirm", "links": [{"req_id": "SFR-011", "met_criteria": []}]})
     assert bad.status_code == 400 and "작성자" in bad.json()["detail"]
     ok = client.post(f"/reports/{r['run_id']}/confirm",
                      json={"decision": "confirm", "author": "이서연",
-                           "links": [{"req_id": "SFR-012", "met_criteria": []}]})
+                           "links": [{"req_id": "SFR-011", "met_criteria": []}]})
     assert ok.status_code == 200
