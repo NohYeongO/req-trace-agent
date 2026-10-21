@@ -174,3 +174,32 @@ def render_deliverable_input(facts: str, feedback: str | None) -> str:
     if feedback:
         user += f"\n\n## 이전 글이 반려된 이유(반드시 고칠 것)\n{feedback}"
     return user
+
+
+# 개발 명세서 — 논리명(한글 이름)·인터페이스 설명 추정. 결과는 문서에 '(추정)'으로 표시하고 담당자가 확인한다.
+NAMING_SCHEMA = {"type": "object", "properties": {"names": {"type": "array", "items": {
+    "type": "object", "properties": {"key": {"type": "string"}, "name": {"type": "string"}},
+    "required": ["key", "name"]}}}, "required": ["names"]}
+
+TABLE_NAMING_SCHEMA = {"type": "object", "properties": {
+    "table": {"type": "string"},
+    "names": NAMING_SCHEMA["properties"]["names"]}, "required": ["table", "names"]}
+
+NAMING_SYSTEM = """너는 공공 SI 사업의 테이블 정의서를 쓰는 데이터 설계 담당자다.
+테이블과 컬럼의 물리명(영문)을 보고 한글 논리명을 붙여라.
+JSON으로만 답한다: {"table": 테이블 논리명, "names": [{"key": 컬럼명, "name": 컬럼 논리명}]}
+- table에는 테이블의 한글 논리명을 쓴다(예: orders → 주문).
+- names에는 '- '로 시작하는 컬럼마다 정확히 하나씩, key는 컬럼명을 그대로 쓴다.
+- 논리명은 짧은 한글 명사구(2~12자)로 쓴다. 예: account_id → 계정 ID, created_at → 생성 일시, is_default → 기본 여부
+- 'id'는 ID, '_at'은 일시, '_date'는 일자, 'is_'·'used'·'active' 같은 불리언은 '여부'로 끝낸다.
+- 용어 사전 힌트가 있으면 그 한글 용어를 우선 쓴다. 설명·따옴표·영문 없이 이름만 쓴다."""
+
+ENDPOINT_SUMMARY_SYSTEM = """너는 공공 SI 사업의 인터페이스 정의서를 쓰는 개발자다.
+REST API의 메서드·경로·핸들러 이름·요청·응답 타입을 보고 인터페이스 설명을 한 줄(25자 이내 한국어)로 붙여라.
+JSON으로만 답한다: {"names": [{"key": 인터페이스 ID, "name": 설명}]}. 예: POST /api/accounts/login → 로그인(토큰 발급)
+- 주어진 key마다 정확히 하나씩 쓴다. 숫자를 지어내지 않는다."""
+
+SPEC_OPINION_SYSTEM = """너는 공공 SI 사업의 개발 명세서를 검토하는 PM이다. '사실'만 근거로 '종합 의견'을 3~5문장으로 써라.
+순서: 인터페이스·테이블 규모 → 요구사항 연결 현황 → 엔티티와 DDL 불일치 등 보완 사항 → AI가 추정한 논리명·설명의 검토 필요성.
+- 숫자·테이블명·요구사항 고유번호는 사실에 적힌 값만 쓴다. 계산하거나 추측하지 않는다.
+- 보고서 문체(~이다, ~필요하다)로, 한국어로만, 목록·머리말·굵게(**) 없이 문단 하나로 쓴다."""

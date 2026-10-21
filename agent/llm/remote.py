@@ -97,11 +97,26 @@ class RemoteLLM:
                               "reason": str(l.get("reason", ""))[:200]})
         return links, usage
 
+    @traceable(run_type="llm", name="llm.name_items")
+    async def name_items(self, kind: str, items: str, feedback: str | None = None) -> tuple[dict, dict]:
+        """개발 명세서의 이름 붙이기 — kind: columns(테이블·컬럼 논리명) | endpoints(인터페이스 설명)."""
+        system = prompts.NAMING_SYSTEM if kind == "columns" else prompts.ENDPOINT_SUMMARY_SYSTEM
+        user = items + (f"\n\n이전 답이 반려된 이유(반드시 고칠 것): {feedback}" if feedback else "")
+        schema = prompts.TABLE_NAMING_SCHEMA if kind == "columns" else prompts.NAMING_SCHEMA
+        content, usage = await self._complete(system, user, schema)
+        data = parse_json(content)
+        out = {str(n.get("key", "")).strip(): str(n.get("name", "")).strip()
+               for n in data.get("names", []) if isinstance(n, dict)}
+        if kind == "columns" and data.get("table"):
+            out["__table__"] = str(data["table"]).strip()
+        return out, usage
+
     @traceable(run_type="llm", name="llm.write_section")
     async def write_section(self, kind: str, facts: str, feedback: str | None = None,
                             on_token=None) -> tuple[str, dict]:
         """검수 산출물의 서술 섹션(failure_analysis | opinion)."""
-        system = prompts.FAILURE_ANALYSIS_SYSTEM if kind == "failure_analysis" else prompts.TEST_OPINION_SYSTEM
+        system = {"failure_analysis": prompts.FAILURE_ANALYSIS_SYSTEM, "spec_opinion": prompts.SPEC_OPINION_SYSTEM
+                  }.get(kind, prompts.TEST_OPINION_SYSTEM)
         return await self._stream(system, prompts.render_deliverable_input(facts, feedback), on_token)
 
     @traceable(run_type="llm", name="llm.comment")

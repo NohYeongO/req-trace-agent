@@ -9,6 +9,7 @@
 - Tool artifact_status()      : 확인 대상(저장소·브랜치·HEAD 또는 폴더), 파일·엔드포인트 수
 - Tool analyze_test_results(source) : 테스트 결과(JUnit·JaCoCo XML) 해석 + 저장소 소스로 단위/통합 구분
 - Tool list_test_results()   : 쓸 수 있는 테스트 결과 자료(데모·업로드)
+- Tool analyze_source_spec()  : 개발 명세서용 소스 분석(엔티티·DDL 대조·컨트롤러 상세·DTO)
 """
 import sys
 from pathlib import Path
@@ -65,6 +66,13 @@ def analyze_test_results(source: str) -> dict:
     classes = sorted({c["class"] for c in results["cases"]})
     return {**results, "kinds": checker().test_kinds(classes), "description": sources.describe(path),
             "artifact": checker().status()}
+
+
+@mcp.tool()
+def analyze_source_spec() -> dict:
+    """확인 대상 저장소의 소스를 분석한다 — JPA 엔티티(+DDL 대조), REST 컨트롤러 상세(설명·파라미터·
+    요청·응답 타입·인증), 요청·응답 DTO(필드·검증 제약). 개발 명세서(인터페이스·테이블 정의서)에 쓴다."""
+    return checker().source_spec()
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ from agent.config import get_settings, today_of
 from agent.criteria_rules import beyond_source
 from agent.dashboard import build_dashboard
 from agent.deliverables.docx_writer import render_docx
+from agent.deliverables.xlsx_writer import render_xlsx
 from agent.deliverables.sources import save_upload
 from agent.evidence import extract_evidence, merge_evidence, normalize_evidence
 from agent.rtm_export import export_rtm
@@ -394,7 +395,7 @@ async def export_rtm_xlsx(as_of: str | None = None):
 
 # ── 검수 산출물 ────────────────────────────────────────────────────────
 class DeliverableDraft(BaseModel):
-    source: str                         # demo:<이름> | upload:<id>
+    source: str = "repo"                # 테스트 결과: demo:<이름> | upload:<id>, 개발 명세서: repo(현재 저장소)
 
 
 class DeliverableEdit(BaseModel):
@@ -433,12 +434,20 @@ async def upload_test_results(file: UploadFile = File(...)):
     return {"source": source}
 
 
-@app.post("/deliverables/test-report/draft")
-async def draft_test_report(body: DeliverableDraft):
-    """테스트 결과 보고서 초안을 만든다(SSE). 마지막에 Done(doc_id) 또는 Failed."""
+_DOC_TYPES = {"test-report": "test_report", "dev-spec": "dev_spec"}
+
+
+@app.post("/deliverables/{kind}/draft")
+async def draft_deliverable(kind: str, body: DeliverableDraft):
+    """산출물 초안을 만든다(SSE). kind: test-report(테스트 결과 보고서) | dev-spec(개발 명세서).
+    마지막에 Done(doc_id) 또는 Done(error)."""
+    if kind not in _DOC_TYPES:
+        raise HTTPException(404, "알 수 없는 문서 종류입니다.")
+
     async def gen():
         result: dict = {}
-        async for line in _stream_graph(app.state.deliverable_graph, initial_deliverable_state(body.source), result):
+        state = initial_deliverable_state(body.source, _DOC_TYPES[kind])
+        async for line in _stream_graph(app.state.deliverable_graph, state, result):
             yield line
         yield _sse({"type": "Done", "doc_id": result.get("doc_id") or None, "error": result.get("error") or None,
                     "cost_usd": result.get("cost_usd", 0.0)})
@@ -488,6 +497,15 @@ async def confirm_deliverable(doc_id: int, body: DeliverableConfirm):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {**doc, "warnings": warnings}
+
+
+@app.get("/deliverables/{doc_id}/xlsx")
+async def deliverable_xlsx(doc_id: int):
+    doc = _get_doc(doc_id)
+    tag = "확정" if doc["status"] == "confirmed" else "초안"
+    name = f"{doc['content']['title']}_{doc['content']['meta']['run_label']}_{tag}.xlsx"
+    return Response(render_xlsx(doc), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 @app.get("/deliverables/{doc_id}/docx")
