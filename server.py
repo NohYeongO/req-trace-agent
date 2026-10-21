@@ -8,6 +8,7 @@
 """
 import json
 import uuid
+from urllib.parse import quote
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -16,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()   # LANGCHAIN_* · LLM_BACKEND 등 — agent import보다 먼저
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from langgraph.types import Command
 from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
@@ -25,15 +26,18 @@ from pydantic import BaseModel
 from agent.config import get_settings, today_of
 from agent.criteria_rules import beyond_source
 from agent.dashboard import build_dashboard
+from agent.deliverables.docx_writer import render_docx
+from agent.deliverables.sources import save_upload
 from agent.evidence import extract_evidence, merge_evidence, normalize_evidence
 from agent.rtm_export import export_rtm
 from agent.deps import SupervisorDeps
-from agent.graphs import build_chat_graph, build_criteria_graph, build_intake_graph
+from agent.graphs import build_chat_graph, build_criteria_graph, build_deliverable_graph, build_intake_graph
 from agent.graphs.intake import intake_config
 from agent.llm import build_llms
 from agent.mcp_client import MCPClient
+from agent.qa import check_answer
 from agent.requirements import REQ_ID_RE, load_requirements
-from agent.state import initial_criteria_state, initial_intake_state, initial_state
+from agent.state import initial_criteria_state, initial_deliverable_state, initial_intake_state, initial_state
 from agent.store import ProjectStore, SqliteSessionStore
 
 APP_VERSION = "0.4.0"
@@ -92,6 +96,7 @@ async def lifespan(app: FastAPI):
     store = ProjectStore(settings.db_path)
     # MCP 서버는 별도 프로세스라 업무 DB 경로를 환경변수로 넘겨 같은 파일을 보게 한다.
     mcp = MCPClient(env={"DB_PATH": str(settings.db_path), "EMBEDDER": settings.embedder,
+                         "UPLOAD_DIR": str(settings.upload_dir),
                          **({"ARTIFACT_ROOT": str(settings.artifact_root)} if settings.artifact_root else {})})
     await mcp.start()
     deps = SupervisorDeps(fast_llm=fast_llm, quality_llm=quality_llm, mcp=mcp, store=store,
@@ -100,6 +105,7 @@ async def lifespan(app: FastAPI):
     app.state.deps = deps
     app.state.criteria_graph = build_criteria_graph(deps)
     app.state.intake_graph = build_intake_graph(deps)
+    app.state.deliverable_graph = build_deliverable_graph(deps)
     # 채팅 supervisor가 완료 보고를 넘길 하위 에이전트 — 완료 보고 탭과 같은 그래프·체크포인터
     deps.agents["intake"] = app.state.intake_graph
     app.state.chat_graph = build_chat_graph(deps)
@@ -384,6 +390,114 @@ async def export_rtm_xlsx(as_of: str | None = None):
     export_rtm(deps.store, out, deps.settings.project_name, as_of, today=today_of(deps.settings))
     return FileResponse(out, filename=name,
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ── 검수 산출물 ────────────────────────────────────────────────────────
+class DeliverableDraft(BaseModel):
+    source: str                         # demo:<이름> | upload:<id>
+
+
+class DeliverableEdit(BaseModel):
+    texts: dict[str, str]               # 섹션 id → 고친 글(서술 섹션만)
+
+
+class DeliverableConfirm(BaseModel):
+    by: str
+    ack_warnings: bool = False          # 수치 검증 경고가 있어도 담당자 책임으로 확정
+
+
+def _doc_warnings(doc: dict) -> dict[str, list[str]]:
+    """서술 섹션의 숫자·고유번호가 결과 자료(facts)와 맞는지 — 담당자가 고친 글도 같은 기준으로 본다."""
+    content = doc["content"]
+    out = {}
+    for sec in content["sections"]:
+        if sec["kind"] == "ai":
+            problems = check_answer(sec.get("text") or "", content["facts"], "")
+            if problems:
+                out[sec["id"]] = problems
+    return out
+
+
+@app.get("/deliverables/sources")
+async def deliverable_sources():
+    """테스트 결과 자료(데모·업로드) 목록 — MCP artifact 서버 list_test_results."""
+    return await app.state.deps.mcp.call_tool("list_test_results", {})
+
+
+@app.post("/deliverables/sources/upload")
+async def upload_test_results(file: UploadFile = File(...)):
+    try:
+        source = save_upload(await file.read(), file.filename or "", app.state.deps.settings)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"source": source}
+
+
+@app.post("/deliverables/test-report/draft")
+async def draft_test_report(body: DeliverableDraft):
+    """테스트 결과 보고서 초안을 만든다(SSE). 마지막에 Done(doc_id) 또는 Failed."""
+    async def gen():
+        result: dict = {}
+        async for line in _stream_graph(app.state.deliverable_graph, initial_deliverable_state(body.source), result):
+            yield line
+        yield _sse({"type": "Done", "doc_id": result.get("doc_id") or None, "error": result.get("error") or None,
+                    "cost_usd": result.get("cost_usd", 0.0)})
+        yield _sse("[DONE]")
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/deliverables")
+async def list_deliverables():
+    return {"documents": app.state.deps.store.list_deliverables()}
+
+
+def _get_doc(doc_id: int) -> dict:
+    doc = app.state.deps.store.get_deliverable(doc_id)
+    if doc is None:
+        raise HTTPException(404, "문서가 없습니다.")
+    return doc
+
+
+@app.get("/deliverables/{doc_id}")
+async def get_deliverable(doc_id: int):
+    doc = _get_doc(doc_id)
+    return {**doc, "warnings": _doc_warnings(doc)}
+
+
+@app.put("/deliverables/{doc_id}")
+async def edit_deliverable(doc_id: int, body: DeliverableEdit):
+    _get_doc(doc_id)
+    try:
+        doc = app.state.deps.store.update_deliverable_text(doc_id, body.texts)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {**doc, "warnings": _doc_warnings(doc)}
+
+
+@app.post("/deliverables/{doc_id}/confirm")
+async def confirm_deliverable(doc_id: int, body: DeliverableConfirm):
+    doc = _get_doc(doc_id)
+    if not body.by.strip():
+        raise HTTPException(400, "확정자 이름을 입력해 주세요.")
+    warnings = _doc_warnings(doc)
+    if warnings and not body.ack_warnings:
+        raise HTTPException(409, {"message": "서술에 결과 자료와 맞지 않는 숫자·고유번호가 있습니다.",
+                                  "warnings": warnings})
+    try:
+        doc = app.state.deps.store.confirm_deliverable(doc_id, body.by.strip())
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {**doc, "warnings": warnings}
+
+
+@app.get("/deliverables/{doc_id}/docx")
+async def deliverable_docx(doc_id: int):
+    doc = _get_doc(doc_id)
+    data = render_docx(doc)
+    tag = "확정" if doc["status"] == "confirmed" else "초안"
+    name = f"{doc['content']['title']}_{doc['content']['meta']['run_label']}_{tag}.docx"
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 if __name__ == "__main__":

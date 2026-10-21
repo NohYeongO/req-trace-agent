@@ -99,6 +99,11 @@
   th { color: var(--muted); font-weight: 500; }
   tbody tr.req { cursor: pointer; }
   tbody tr.req:hover, tbody tr.req.open { background: #2a2a3e; }
+  .docview { margin-top: 24px; border-top: 1px solid var(--line, #333); padding-top: 12px; }
+  .docsec { margin: 14px 0; }
+  .docsec h3 { margin: 0 0 6px; font-size: 15px; }
+  .docsec textarea { width: 100%; }
+  tr.sel td { background: rgba(108, 99, 255, .12); }
   .evrow { display: flex; gap: 6px; margin: 4px 0; }
   .evrow select { width: 96px; flex: none; }
   .evrow input { flex: 1; min-width: 0; }
@@ -320,6 +325,85 @@
       </div>
     </section>
 
+    <section v-else-if="tab === 'deliverables'" class="page">
+      <div class="card wide" style="max-width:1200px">
+        <h2>검수 산출물</h2>
+        <p>테스트 결과 파일(JUnit·JaCoCo XML)과 완료 보고로 <b>테스트 결과 보고서</b> 초안을 만듭니다. 표의 숫자는 결과 파일에서
+           코드가 계산하고, AI는 실패 원인 분석·종합 의견만 씁니다(서술 속 숫자는 결과와 대조). 담당자가 검토·수정한 뒤
+           <b>확정</b>하면 제출용 docx를 받을 수 있습니다.</p>
+        <div class="field"><span>문서 종류</span>
+          <select v-model="dv.docType" style="max-width:320px">
+            <option value="test_report">테스트 결과 보고서 (단위·통합)</option>
+            <option value="dev_spec" disabled>개발 명세서 (준비 중)</option>
+          </select>
+        </div>
+        <div class="field"><span>테스트 결과 자료</span>
+          <select v-model="dv.source" style="max-width:420px">
+            <option v-for="s in dv.sources" :key="s.source" :value="s.source">
+              {{ s.kind === 'demo' ? '[데모]' : '[업로드]' }} {{ s.name }} (XML {{ s.files }}개)</option>
+          </select>
+        </div>
+        <div v-if="dvSourceInfo" class="hint" style="white-space:pre-wrap;margin:0 0 8px">{{ dvSourceInfo }}</div>
+        <div class="toolbar">
+          <input type="file" accept=".zip" ref="dvFileEl" style="max-width:320px" />
+          <button class="btn" :disabled="dv.uploading" @click="dvUpload">결과 zip 올리기</button>
+          <span class="hint">build/test-results 와 jacoco XML을 zip으로 묶어 올리세요.</span>
+        </div>
+        <div class="toolbar">
+          <button class="btn primary" :disabled="dv.running || !dv.source" @click="dvDraft">
+            {{ dv.running ? 'AI가 작성하는 중…' : '초안 만들기' }}</button>
+        </div>
+        <div v-if="dv.error" class="notice err">{{ dv.error }}</div>
+        <div v-if="dv.steps.length" class="steplist">
+          <div v-for="(st, i) in dv.steps" :key="i" :class="{ warn: st.warn }">{{ st.text }}</div>
+        </div>
+        <div v-if="dv.running && dv.live" class="notice" style="white-space:pre-wrap">{{ dv.live }}</div>
+
+        <h2 style="margin-top:24px">문서 목록</h2>
+        <table v-if="dv.docs.length">
+          <tr><th>#</th><th>문서</th><th>상태</th><th>작성</th><th>확정</th><th></th></tr>
+          <tr v-for="d in dv.docs" :key="d.id" :class="{ sel: dv.doc && dv.doc.id === d.id }">
+            <td>{{ d.id }}</td><td>{{ d.title }}</td>
+            <td><span class="badge" :class="d.status === 'confirmed' ? 'st-done' : 'draft'">{{ d.status === 'confirmed' ? '확정' : '검토 중' }}</span></td>
+            <td>{{ d.created_at.replace('T', ' ').slice(0, 16) }}</td>
+            <td>{{ d.confirmed_by ? d.confirmed_by + ' · ' + d.confirmed_at.replace('T', ' ').slice(0, 16) : '' }}</td>
+            <td><button class="btn" @click="dvOpen(d.id)">열기</button></td>
+          </tr>
+        </table>
+        <p v-else>아직 만든 문서가 없습니다.</p>
+
+        <div v-if="dv.doc" class="docview">
+          <h2>{{ dv.doc.title }} <span class="badge" :class="dv.doc.status === 'confirmed' ? 'st-done' : 'draft'">{{ dv.doc.status === 'confirmed' ? '확정' : '검토 중' }}</span></h2>
+          <div v-for="sec in dv.doc.content.sections" :key="sec.id" class="docsec">
+            <h3>{{ sec.title }}
+              <span v-if="sec.kind === 'ai'" class="badge" :class="sec.edited ? 'st-done' : sec.fallback ? 'st-none' : 'draft'">
+                {{ sec.edited ? '담당자 수정' : sec.fallback ? '코드 작성(AI 검증 실패)' : 'AI 초안' }}</span></h3>
+            <table v-if="sec.kind === 'table'">
+              <tr><th v-for="c in sec.columns" :key="c">{{ c }}</th></tr>
+              <tr v-for="(row, i) in sec.rows" :key="i"><td v-for="(v, j) in row" :key="j">{{ v }}</td></tr>
+              <tr v-if="!sec.rows.length"><td :colspan="sec.columns.length">해당 없음</td></tr>
+            </table>
+            <template v-else>
+              <textarea v-if="dv.doc.status !== 'confirmed'" v-model="dv.edits[sec.id]" rows="5"></textarea>
+              <div v-else style="white-space:pre-wrap">{{ sec.text }}</div>
+              <div v-for="w in (dv.warnings[sec.id] || [])" :key="w" class="notice err" style="font-size:12px">⚠ {{ w }} — 결과 자료와 맞지 않습니다</div>
+            </template>
+            <div v-if="sec.note" class="hint" style="margin:4px 0 0">※ {{ sec.note }}</div>
+          </div>
+          <div class="toolbar">
+            <template v-if="dv.doc.status !== 'confirmed'">
+              <button class="btn" :disabled="dv.saving" @click="dvSave">수정 저장</button>
+              <input v-model="dv.by" placeholder="확정자 이름" style="max-width:160px" />
+              <label v-if="Object.keys(dv.warnings).length" class="check" style="margin:0">
+                <input type="checkbox" v-model="dv.ack" /> <span>경고를 확인했고 담당자 책임으로 확정</span></label>
+              <button class="btn primary" :disabled="dv.saving || !dv.by.trim()" @click="dvConfirm">확정</button>
+            </template>
+            <a class="btn" :href="`/deliverables/${dv.doc.id}/docx`">docx 다운로드 ({{ dv.doc.status === 'confirmed' ? '확정본' : '초안' }})</a>
+          </div>
+          <div v-if="dv.msg" class="notice">{{ dv.msg }}</div>
+        </div>
+      </div>
+    </section>
     <section v-else-if="tab === 'dashboard'" class="page">
       <div class="card wide" style="max-width:1200px">
         <h2>대시보드</h2>
@@ -474,6 +558,7 @@ const TABS = [
   { id: 'dashboard', label: '대시보드' },
   { id: 'report', label: '완료 보고' },
   { id: 'requirements', label: '요구사항' },
+  { id: 'deliverables', label: '산출물' },
   { id: 'chat', label: '채팅' },
 ];
 
@@ -754,6 +839,82 @@ createApp({
       }
     }
 
+    // ── 산출물 탭 ──
+    const dv = reactive({ docType: 'test_report', sources: [], source: '', uploading: false, running: false,
+                          steps: [], live: '', error: '', docs: [], doc: null, edits: {}, warnings: {},
+                          by: '', ack: false, saving: false, msg: '' });
+    const dvFileEl = ref(null);
+    const dvSourceInfo = computed(() => dv.sources.find(s => s.source === dv.source)?.description || '');
+    const DV_STEPS = {
+      ResultsCollected: e => `결과 자료 해석: 테스트 ${e.cases}건, 클래스 ${e.classes}개(단위 ${e.unit}·통합 ${e.integration}·미확인 ${e.unknown}), 커버리지 모듈 ${e.coverage_modules}개, 완료 보고 ${e.reports}건`,
+      DocumentBuilt: e => `표 작성(코드): 섹션 ${e.sections}개, 통과율 ${e.pass_rate}%, 테스트가 연결된 요구사항 ${e.linked}건`,
+      SectionsWritten: e => `AI 서술 작성 (${e.attempt}차): ${e.sections.map(s => DV_NAMES[s] || s).join(', ')}`,
+      SectionsValidated: e => Object.keys(e.problems).length
+        ? `서술 수치 검증 반려: ${Object.entries(e.problems).map(([k, v]) => `${DV_NAMES[k] || k} — ${v.join(' / ')}`).join('; ')}`
+          + (e.fallback.length ? ' → 코드 문장으로 대체' : ' → 다시 작성') : '서술 수치 검증 통과',
+      DraftSaved: e => `초안 저장: ${e.title}`,
+      Failed: e => `실패: ${e.error}`,
+    };
+    const DV_NAMES = { failure_analysis: '실패 원인 분석', opinion: '종합 의견' };
+
+    async function dvLoad() {
+      const [src, docs] = await Promise.all([fetch('/deliverables/sources').then(r => r.json()), fetch('/deliverables').then(r => r.json())]);
+      dv.sources = src.sources || [];
+      if (!dv.source && dv.sources.length) dv.source = dv.sources[dv.sources.length - 1].source;
+      dv.docs = docs.documents;
+    }
+    async function dvUpload() {
+      const f = dvFileEl.value?.files?.[0];
+      dv.error = '';
+      if (!f) { dv.error = 'zip 파일을 먼저 선택해 주세요.'; return; }
+      dv.uploading = true;
+      const body = new FormData(); body.append('file', f);
+      const res = await fetch('/deliverables/sources/upload', { method: 'POST', body });
+      const data = await res.json();
+      dv.uploading = false;
+      if (!res.ok) { dv.error = data.detail; return; }
+      await dvLoad(); dv.source = data.source;
+    }
+    async function dvDraft() {
+      Object.assign(dv, { running: true, steps: [], live: '', error: '' });
+      const res = await fetch('/deliverables/test-report/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                   body: JSON.stringify({ source: dv.source }) });
+      let docId = null, lastSec = '';
+      await readSSE(res, e => {
+        if (e.type === 'SectionToken') {
+          if (e.section !== lastSec) { dv.live += `\n[${DV_NAMES[e.section] || e.section}]\n`; lastSec = e.section; }
+          dv.live += e.delta; return;
+        }
+        if (e.type === 'Done') { docId = e.doc_id; if (e.error) dv.error = e.error; return; }
+        const f = DV_STEPS[e.type];
+        if (f) dv.steps.push({ text: f(e), warn: e.type === 'Failed' || (e.type === 'SectionsValidated' && Object.keys(e.problems).length) });
+      });
+      dv.running = false;
+      await dvLoad();
+      if (docId) await dvOpen(docId);
+    }
+    function dvShow(doc) {
+      dv.doc = doc; dv.warnings = doc.warnings || {}; dv.ack = false; dv.msg = '';
+      dv.edits = Object.fromEntries(doc.content.sections.filter(s => s.kind !== 'table').map(s => [s.id, s.text || '']));
+    }
+    async function dvOpen(id) { dvShow(await (await fetch(`/deliverables/${id}`)).json()); }
+    async function dvSave() {
+      dv.saving = true;
+      const res = await fetch(`/deliverables/${dv.doc.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                                             body: JSON.stringify({ texts: dv.edits }) });
+      const data = await res.json(); dv.saving = false;
+      if (!res.ok) { dv.msg = data.detail; return; }
+      dvShow(data); dv.msg = Object.keys(dv.warnings).length ? '저장했습니다. 경고를 확인해 주세요.' : '저장했습니다.';
+    }
+    async function dvConfirm() {
+      await dvSave();
+      dv.saving = true;
+      const res = await fetch(`/deliverables/${dv.doc.id}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                                     body: JSON.stringify({ by: dv.by, ack_warnings: dv.ack }) });
+      const data = await res.json(); dv.saving = false;
+      if (!res.ok) { dv.msg = typeof data.detail === 'string' ? data.detail : data.detail.message; return; }
+      dvShow(data); dv.msg = '확정했습니다. 확정본 docx를 내려받을 수 있습니다.'; await dvLoad();
+    }
     // ── 대시보드 탭 ──
     const dash = ref(null);
     const asOf = ref('');
@@ -793,6 +954,7 @@ createApp({
       if (t === 'requirements') loadReqs();
       if (t === 'report') { loadReports(); loadReqs(); }
       if (t === 'dashboard') loadDashboard();
+      if (t === 'deliverables') dvLoad();
     });
     watch(asOf, () => loadDashboard());
     loadDashboard();   // 첫 화면
@@ -858,6 +1020,7 @@ createApp({
              stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
              editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
              draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake,
+             dv, dvFileEl, dvSourceInfo, dvUpload, dvDraft, dvOpen, dvSave, dvConfirm,
              draftReport, onIntakeDone, evTypes, evRows, reqSel, reqPick, pickReq, fillMsg, fillEvidence, onChatReportDone, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
   },
 }).component('report-confirm', ReportConfirm).mount('#app');
