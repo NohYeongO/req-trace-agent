@@ -64,6 +64,22 @@ class FakeLLM:
             links.append({"req_id": "ZZZ-999", "met": [1], "reason": "지어낸 매핑"})
         return links, self._usage(text, str(links))
 
+    @traceable(run_type="llm", name="fake.write_section")
+    async def write_section(self, kind: str, facts: str, feedback: str | None = None,
+                            on_token=None) -> tuple[str, dict]:
+        """사실 문단을 보고서 문체로 옮긴다(결정적). 실패 원인은 원인마다 한 줄."""
+        lines = facts.splitlines()
+        if kind == "failure_analysis":
+            reply = "\n".join("- " + l.replace("[실패 원인] ", "") + " 원인을 조치한 뒤 재수행이 필요하다."
+                              for l in lines if l.startswith("[실패 원인]"))
+        else:
+            head = next((l for l in lines if l.startswith("[수행 결과]")), "")
+            reply = head.replace("[수행 결과] ", "테스트 수행 결과는 ") + "이다. 결과 표와 요구사항 연결을 검토해 보완이 필요하다."
+        for piece in reply.split(" "):
+            if on_token is not None:
+                on_token(piece + " ")
+        return reply, self._usage(facts[:2000], reply)
+
     @traceable(run_type="llm", name="fake.comment")
     async def comment(self, query: str, core: str, feedback: str | None = None,
                       on_token=None) -> tuple[str, dict]:

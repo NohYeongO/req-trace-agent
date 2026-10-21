@@ -68,6 +68,11 @@ class StubMCP:
                                                        arguments.get("since") or None,
                                                        arguments.get("until") or None,
                                                        arguments.get("req_id") or None)}
+        if name in ("analyze_test_results", "list_test_results"):
+            import mcp_server_artifact as srv
+            srv._checker = self.checker
+            fn = getattr(srv, name)
+            return fn(**arguments)
         if name == "verify_evidence":
             return {"results": self.checker.check(arguments["items"])}
         raise ValueError(name)

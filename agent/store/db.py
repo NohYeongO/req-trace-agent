@@ -270,5 +270,59 @@ class ProjectStore:
                 p["status"] = DONE if p["met"] == p["total"] else PARTIAL if p["met"] else NOT_STARTED
         return out
 
+    # ── 검수 산출물 ─────────────────────────────────────────────────────
+    def save_deliverable(self, doc_type: str, title: str, source: str, content: dict) -> int:
+        now = _now()
+        cur = self.conn.execute(
+            "INSERT INTO deliverables (doc_type, title, source, content, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+            (doc_type, title, source, json.dumps(content, ensure_ascii=False), now, now))
+        self.conn.commit()
+        return cur.lastrowid
+
+    def _deliverable_row(self, r) -> dict:
+        d = dict(r)
+        d["content"] = json.loads(d["content"])
+        return d
+
+    def get_deliverable(self, doc_id: int) -> dict | None:
+        r = self.conn.execute("SELECT * FROM deliverables WHERE id = ?", (doc_id,)).fetchone()
+        return self._deliverable_row(r) if r else None
+
+    def list_deliverables(self, doc_type: str | None = None) -> list[dict]:
+        sql = "SELECT id, doc_type, title, status, source, created_at, updated_at, confirmed_at, confirmed_by " \
+              "FROM deliverables" + (" WHERE doc_type = ?" if doc_type else "") + " ORDER BY id DESC"
+        return [dict(r) for r in self.conn.execute(sql, (doc_type,) if doc_type else ())]
+
+    def update_deliverable_text(self, doc_id: int, texts: dict[str, str]) -> dict:
+        """서술 섹션(kind=ai·text)의 글만 고친다. 표는 결과 파일에서 계산한 값이라 고칠 수 없다."""
+        doc = self.get_deliverable(doc_id)
+        if doc is None:
+            raise KeyError(doc_id)
+        if doc["status"] == "confirmed":
+            raise ValueError("확정된 문서는 고칠 수 없습니다. 새로 작성해 주세요.")
+        sections = {s["id"]: s for s in doc["content"]["sections"]}
+        for sid, text in texts.items():
+            sec = sections.get(sid)
+            if sec is None or sec["kind"] not in ("ai", "text"):
+                raise ValueError(f"고칠 수 없는 섹션: {sid}")
+            if text != sec.get("text"):
+                sec["text"], sec["edited"] = text, True
+        self.conn.execute("UPDATE deliverables SET content = ?, updated_at = ? WHERE id = ?",
+                          (json.dumps(doc["content"], ensure_ascii=False), _now(), doc_id))
+        self.conn.commit()
+        return self.get_deliverable(doc_id)
+
+    def confirm_deliverable(self, doc_id: int, by: str) -> dict:
+        doc = self.get_deliverable(doc_id)
+        if doc is None:
+            raise KeyError(doc_id)
+        if doc["status"] == "confirmed":
+            raise ValueError("이미 확정된 문서입니다.")
+        now = _now()
+        self.conn.execute("UPDATE deliverables SET status = 'confirmed', confirmed_at = ?, confirmed_by = ?, "
+                          "updated_at = ? WHERE id = ?", (now, by, now, doc_id))
+        self.conn.commit()
+        return self.get_deliverable(doc_id)
+
     def close(self) -> None:
         self.conn.close()

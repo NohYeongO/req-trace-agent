@@ -7,6 +7,8 @@
 
 - Tool verify_evidence(items) : [{type, value}] → 항목별 found / not_found / unchecked
 - Tool artifact_status()      : 확인 대상(저장소·브랜치·HEAD 또는 폴더), 파일·엔드포인트 수
+- Tool analyze_test_results(source) : 테스트 결과(JUnit·JaCoCo XML) 해석 + 저장소 소스로 단위/통합 구분
+- Tool list_test_results()   : 쓸 수 있는 테스트 결과 자료(데모·업로드)
 """
 import sys
 from pathlib import Path
@@ -19,6 +21,8 @@ load_dotenv()
 
 from agent.artifacts import ArtifactChecker, make_checker   # noqa: E402
 from agent.config import get_settings         # noqa: E402
+from agent.deliverables import sources        # noqa: E402
+from agent.deliverables.junit import read_results  # noqa: E402
 
 mcp = FastMCP(name="req-trace-agent-artifact")
 _checker: ArtifactChecker | None = None
@@ -41,6 +45,26 @@ def verify_evidence(items: list[dict]) -> dict:
 def artifact_status() -> dict:
     """확인 대상(공용 저장소·브랜치·HEAD 또는 로컬 폴더)과 규모(파일·엔드포인트 수)."""
     return checker().status()
+
+
+@mcp.tool()
+def list_test_results() -> dict:
+    """테스트 결과 보고서에 쓸 수 있는 결과 자료 목록(데모·업로드)."""
+    return {"sources": sources.list_sources(get_settings())}
+
+
+@mcp.tool()
+def analyze_test_results(source: str) -> dict:
+    """테스트 결과 자료('demo:<이름>' 또는 'upload:<id>')의 JUnit·JaCoCo XML을 해석하고, 테스트
+    클래스마다 저장소의 테스트 소스로 단위/통합을 구분한다."""
+    try:
+        path = sources.resolve(source, get_settings())
+    except ValueError as e:
+        return {"error": str(e)}
+    results = read_results(path)
+    classes = sorted({c["class"] for c in results["cases"]})
+    return {**results, "kinds": checker().test_kinds(classes), "description": sources.describe(path),
+            "artifact": checker().status()}
 
 
 if __name__ == "__main__":

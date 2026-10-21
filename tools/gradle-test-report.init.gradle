@@ -1,0 +1,18 @@
+// 테스트 결과 보고서용 Gradle 실행 설정 — 대상 저장소 코드는 바꾸지 않고 실행 시에만 적용한다.
+// 사용: ./gradlew test --continue --init-script <이 파일 경로>
+//       결과: <모듈>/build/test-results/test/*.xml, <모듈>/build/reports/jacoco/test/jacocoTestReport.xml
+// 1) Docker 29(최소 API 1.44)와 Testcontainers 1.20.x 호환: docker-java API 버전 지정
+// 2) JaCoCo 커버리지 XML 생성
+allprojects {
+    afterEvaluate { p ->
+        if (p.plugins.hasPlugin('java')) {
+            p.apply plugin: 'jacoco'
+            p.tasks.named('jacocoTestReport').configure {
+                dependsOn p.tasks.named('test')
+                reports { xml.required = true; html.required = false }
+            }
+            p.tasks.named('test').configure { finalizedBy p.tasks.named('jacocoTestReport') }
+        }
+        p.tasks.withType(Test).configureEach { systemProperty 'api.version', '1.44' }
+    }
+}

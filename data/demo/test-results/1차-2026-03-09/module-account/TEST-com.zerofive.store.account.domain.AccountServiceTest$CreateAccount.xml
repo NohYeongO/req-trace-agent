@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="createAccount" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-03-09T05:46:37" hostname="ci" time="0.005">
+  <properties/>
+  <testcase name="새로운 계정을 생성한다" classname="com.zerofive.store.account.domain.AccountServiceTest$CreateAccount" time="0.004"/>
+  <testcase name="이미 존재하는 이메일이면 예외를 던진다" classname="com.zerofive.store.account.domain.AccountServiceTest$CreateAccount" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

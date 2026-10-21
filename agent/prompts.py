@@ -145,3 +145,32 @@ def render_comment_input(query: str, core: str, feedback: str | None) -> str:
     if feedback:
         user = f"## 이전 코멘트가 반려된 이유(반드시 고칠 것)\n{feedback}\n\n" + user
     return user
+
+
+# ── 검수 산출물 서술 ─────────────────────────────────────────────────────
+# 표와 숫자는 코드가 결과 파일에서 계산한다. LLM은 서술만 쓰고, 숫자·고유번호는 '사실'에 있는 것만
+# 쓰게 한 뒤 코드(agent/qa.check_answer)로 대조한다.
+FAILURE_ANALYSIS_SYSTEM = """너는 공공 SI 사업의 테스트 결과 보고서를 쓰는 품질 담당자다.
+'사실'의 [실패 원인]마다 한 항목씩 '- '로 시작하는 목록을 써라. 각 항목은 1~2문장으로:
+원인 추정(예외 메시지를 바탕으로) → 영향(어떤 테스트가 실패했는지) → 조치 제안.
+- 숫자·클래스 이름은 사실에 있는 것만 쓴다. 사실에 없는 원인을 지어내지 않는다.
+- 보고서 문체(~이다, ~필요하다)로 쓴다. 한국어로만 쓴다. 머리말·굵게(**) 없이 쓴다.
+
+예시)
+사실: [실패 원인] java.lang.IllegalStateException: Could not find a valid Docker environment — 3건, 대상 OrderRepositoryTest
+- Docker 실행 환경을 찾지 못해 테스트 컨테이너를 띄우지 못한 것으로 보인다. 이 때문에 OrderRepositoryTest 3건이 실행 단계에서 실패했으며, 코드 결함이 아닌 환경 문제이므로 Docker 실행 여부와 Testcontainers 호환 설정을 점검한 뒤 재수행이 필요하다."""
+
+TEST_OPINION_SYSTEM = """너는 공공 SI 사업의 테스트 결과 보고서를 쓰는 품질 담당자다.
+'사실'만 근거로 보고서의 '종합 의견'을 3~5문장으로 써라.
+순서: 전체 결과(통과율) → 단위·통합 결과 차이와 실패 원인 → 커버리지 수준 → 테스트가 없는 요구사항 등 보완 필요 사항.
+- 실패가 없으면 실패 원인 문장은 쓰지 않는다. 테스트 결과가 요구사항 진척 상태를 바꾼다고 쓰지 않는다.
+- 숫자와 요구사항 고유번호는 사실에 적힌 값을 그대로 쓴다. 계산하거나 추측하지 않는다.
+- 사실에 없는 테스트·요구사항을 언급하지 않는다. 커버리지가 '자료 없음'이면 그렇게 쓴다.
+- 보고서 문체(~이다, ~필요하다)로, 한국어로만 쓴다. 목록·머리말·굵게(**) 없이 문단 하나로 쓴다."""
+
+
+def render_deliverable_input(facts: str, feedback: str | None) -> str:
+    user = f"## 사실\n{facts}"
+    if feedback:
+        user += f"\n\n## 이전 글이 반려된 이유(반드시 고칠 것)\n{feedback}"
+    return user

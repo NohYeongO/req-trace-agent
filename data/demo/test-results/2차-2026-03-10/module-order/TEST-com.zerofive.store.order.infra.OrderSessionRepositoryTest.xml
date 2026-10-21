@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.zerofive.store.order.infra.OrderSessionRepositoryTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-10T05:46:17" hostname="ci" time="0.515">
+  <properties/>
+  <testcase name="주문 세션 저장 및 조회 테스트" classname="com.zerofive.store.order.infra.OrderSessionRepositoryTest" time="0.381"/>
+  <testcase name="만료된 세션 조회 테스트" classname="com.zerofive.store.order.infra.OrderSessionRepositoryTest" time="0.012"/>
+  <testcase name="세션 폴링 시간 업데이트 테스트" classname="com.zerofive.store.order.infra.OrderSessionRepositoryTest" time="0.12"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

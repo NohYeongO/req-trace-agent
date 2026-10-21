@@ -1,0 +1,2 @@
+저장소: https://github.com/NohYeongO/zerofive-store (main 039d5d1)
+2차 수행: docker-java api.version=1.44 지정(Gradle init script) 후 재수행, JaCoCo 포함

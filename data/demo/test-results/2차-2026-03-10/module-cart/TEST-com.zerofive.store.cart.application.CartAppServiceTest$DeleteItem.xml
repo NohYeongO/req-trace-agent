@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="deleteItem" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-03-10T05:45:55" hostname="ci" time="0.645">
+  <properties/>
+  <testcase name="장바구니 항목이 없으면 예외를 던진다" classname="com.zerofive.store.cart.application.CartAppServiceTest$DeleteItem" time="0.635"/>
+  <testcase name="장바구니가 없으면 예외를 던진다" classname="com.zerofive.store.cart.application.CartAppServiceTest$DeleteItem" time="0.002"/>
+  <testcase name="장바구니 항목을 삭제한다" classname="com.zerofive.store.cart.application.CartAppServiceTest$DeleteItem" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

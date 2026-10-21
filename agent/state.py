@@ -79,3 +79,25 @@ def initial_intake_state(author: str, text: str, evidence: list[dict] | None = N
             "evidence": [], "candidates": [], "links": [], "feedback": "", "attempts": 0,
             "evidence_check": [], "decision": {}, "report_id": 0, "changes": [], "final": "",
             "cost_usd": 0.0, "events": []}
+
+
+class DeliverableState(TypedDict, total=False):
+    source: str                 # 테스트 결과 자료 이름(demo:<이름> | upload:<id>)
+    analysis: dict              # MCP analyze_test_results 결과(케이스·커버리지·단위/통합 구분)
+    progress: dict              # MCP get_progress 결과(요구사항 진척)
+    reports: list[dict]         # MCP list_reports 결과(근거 포함 완료 보고)
+    doc: dict                   # 문서 본문(섹션 목록·facts)
+    pending: list[str]          # 아직 검증을 통과하지 못한 서술 섹션 id
+    feedback: dict              # 섹션별 반려 사유
+    attempts: int
+    fallbacks: list[str]        # 끝내 검증을 못 넘어 코드 문장으로 대체한 섹션
+    doc_id: int
+    error: str
+    cost_usd: float
+    events: list[dict]
+
+
+def initial_deliverable_state(source: str) -> DeliverableState:
+    return {"source": source, "analysis": {}, "progress": {}, "reports": [], "doc": {}, "pending": [],
+            "feedback": {}, "attempts": 0, "fallbacks": [], "doc_id": 0, "error": "", "cost_usd": 0.0,
+            "events": []}

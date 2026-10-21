@@ -43,3 +43,18 @@ CREATE TABLE IF NOT EXISTS report_links (
 
 CREATE INDEX IF NOT EXISTS idx_criteria_req ON criteria(req_id);
 CREATE INDEX IF NOT EXISTS idx_links_req ON report_links(req_id);
+
+-- 검수 산출물(테스트 결과 보고서 등). 본문은 섹션 목록 JSON — 표는 코드가 계산한 값,
+-- 서술은 AI 초안 또는 담당자가 고친 글. status: draft(검토 중) → confirmed(확정, 수정 불가).
+CREATE TABLE IF NOT EXISTS deliverables (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_type     TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'draft',
+    source       TEXT NOT NULL DEFAULT '',
+    content      TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL,
+    confirmed_at TEXT,
+    confirmed_by TEXT
+);

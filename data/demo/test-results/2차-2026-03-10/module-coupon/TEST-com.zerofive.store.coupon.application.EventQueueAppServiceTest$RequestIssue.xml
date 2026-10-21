@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="requestIssue" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-03-10T05:46:07" hostname="ci" time="0.188">
+  <properties/>
+  <testcase name="재고가 없으면 SOLD_OUT을 반환한다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.163"/>
+  <testcase name="재고가 있으면 쿠폰을 발급한다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.002"/>
+  <testcase name="이미 발급된 쿠폰이면 DUPLICATE를 반환한다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.001"/>
+  <testcase name="DB 중복 발급 시 DUPLICATE를 반환하고 재고를 복구한다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.003"/>
+  <testcase name="DB 저장 중 예외 발생 시 재고를 복구하고 예외를 던진다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.008"/>
+  <testcase name="쿠폰이 존재하지 않으면 예외를 던지고 재고를 복구한다" classname="com.zerofive.store.coupon.application.EventQueueAppServiceTest$RequestIssue" time="0.006"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
