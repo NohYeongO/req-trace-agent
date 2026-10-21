@@ -1,267 +1,17 @@
 {
-  "note": "데모 완료 보고. petclinic(핀 커밋 afc8fc1)의 실제 파일·API·테스트 이름으로 작성했다. expected는 담당자가 확인한 매핑(조건은 data/demo/criteria.json의 순번)이며 시드와 매핑 평가의 정답으로 쓴다.",
+  "note": "데모 완료 보고. https://github.com/NohYeongO/zerofive-store 의 실제 PR #1~#10 내용과 병합일을 따라 썼고, 작성자는 모듈별 가상 담당자 3명이다. 파일·API·테스트·PR 이름은 실제 저장소(main) 기준이다. expected는 담당자가 확인한 매핑(조건 번호는 data/demo/criteria.json 순번)이며 시드와 매핑 평가의 정답으로 쓴다.",
   "reports": [
     {
-      "created_at": "2026-10-01T10:20:00",
-      "author": "김민준",
-      "text": "보호자 등록 API 완료했습니다. POST /owners로 이름, 성, 주소, 도시, 전화번호를 받아 저장하고, 등록 후 GET /owners/{ownerId}로 다시 조회되는 것까지 확인했습니다. OwnerRestControllerV1.addOwner 구현, OwnerRestControllerV1Tests의 testCreateOwnerSuccess 통과.",
+      "created_at": "2026-02-04T11:50:00",
+      "author": "박지훈",
+      "text": "멀티모듈 초기 세팅 끝냈습니다. core 모듈에 BaseEntity와 JpaAuditingConfig를 넣어서 모든 엔티티의 생성·수정 일시가 자동으로 기록되고, 공통 응답 형식과 GlobalExceptionHandler로 오류 응답 형식을 통일했습니다. PR #1",
       "expected": [
         {
-          "req_id": "SFR-001",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-02T16:05:00",
-      "author": "김민준",
-      "text": "보호자 상세 조회 끝났습니다. GET /owners/{ownerId} 응답에 보유한 반려동물 목록(pets)까지 같이 내려가게 했어요. testGetOwnerSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-002",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-03T11:40:00",
-      "author": "김민준",
-      "text": "보호자 정보 수정(PUT /owners/{ownerId})과 삭제(DELETE /owners/{ownerId}) 작업했습니다. 수정 후 다시 조회하면 바뀐 값이 나오고, 삭제는 없는 ID면 404를 돌려줍니다. testUpdateOwnerSuccess, testDeleteOwnerSuccess, testDeleteOwnerError 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-003",
-          "met": [
-            1,
-            2
-          ]
-        },
-        {
-          "req_id": "SFR-004",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-05T14:30:00",
-      "author": "이서연",
-      "text": "수의사 관리 API 전부 끝냈습니다. GET /vets, POST /vets, PUT /vets/{vetId}, DELETE /vets/{vetId} 구현했고 VetRestControllerV1Tests 전체 통과했습니다.",
-      "expected": [
-        {
-          "req_id": "SFR-012",
-          "met": [
-            1,
-            2,
-            3,
-            4
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-06T17:10:00",
-      "author": "김민준",
-      "text": "보호자 검색은 1차로 성(lastName) 검색만 붙였습니다. GET /owners?lastName=Davis 형태로 조회되고 OwnerRestControllerV1.listOwners를 수정했어요. 전화번호 검색은 아직입니다. testGetOwnersListSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-005",
-          "met": [
-            1
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-07T13:00:00",
-      "author": "이서연",
-      "text": "진료 방문 기록 등록 완료. POST /owners/{ownerId}/pets/{petId}/visits로 방문 일자와 진료 내용을 저장하고, 반려동물을 조회하면 방문 기록도 함께 나옵니다. testCreateVisitSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-010",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-08T15:45:00",
-      "author": "김민준",
-      "text": "반려동물 등록·수정·삭제 했습니다. POST /owners/{ownerId}/pets로 이름, 생년월일, 종류를 받아 등록하고 보호자를 조회하면 목록에 보여요. 수정은 PUT /pets/{petId}, 삭제는 DELETE /pets/{petId}입니다. testCreatePetSuccess, testUpdatePetSuccess, testDeletePetSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-006",
-          "met": [
-            1,
-            2
-          ]
-        },
-        {
-          "req_id": "SFR-007",
+          "req_id": "DAR-002",
           "met": [
             1
           ]
         },
-        {
-          "req_id": "SFR-008",
-          "met": [
-            1
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-09T10:15:00",
-      "author": "박지훈",
-      "text": "공통 오류 응답을 RFC 7807 Problem Details 형식으로 통일했습니다. ExceptionControllerAdvice에서 ProblemDetail을 만들어서 모든 컨트롤러 예외가 같은 형식으로 나갑니다.",
-      "expected": [
-        {
-          "req_id": "QUR-001",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-10T18:20:00",
-      "author": "이서연",
-      "text": "진료 방문 기록 수정 기능 붙였습니다. PUT /visits/{visitId}, testUpdateVisitSuccess 통과. 삭제는 다음에 하겠습니다.",
-      "expected": [
-        {
-          "req_id": "SFR-011",
-          "met": [
-            1
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-12T11:00:00",
-      "author": "박지훈",
-      "text": "역할 기반 접근통제 적용했습니다. Roles에 OWNER_ADMIN, VET_ADMIN, ADMIN을 정의하고 컨트롤러마다 @PreAuthorize를 걸었어요. 보호자 관리는 OWNER_ADMIN, 수의사 관리는 VET_ADMIN, 사용자 관리는 ADMIN만 호출할 수 있습니다. BasicAuthenticationConfig 참고.",
-      "expected": [
-        {
-          "req_id": "SER-001",
-          "met": [
-            1,
-            2,
-            3
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-13T14:10:00",
-      "author": "김민준",
-      "text": "반려동물 종류 관리 API 완료. GET /pettypes, POST /pettypes, PUT /pettypes/{petTypeId}, DELETE /pettypes/{petTypeId}. PetTypeRestControllerV1Tests 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-009",
-          "met": [
-            1,
-            2,
-            3,
-            4
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-14T16:30:00",
-      "author": "박지훈",
-      "text": "사용자 계정 생성 API(POST /users) 만들었습니다. 생성할 때 roles로 역할을 여러 개 지정할 수 있습니다. UserServiceImpl.saveUser, testCreateUserSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-015",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-15T10:50:00",
-      "author": "박지훈",
-      "text": "비밀번호 해시용 BCryptPasswordEncoder 빈을 BasicAuthenticationConfig에 등록해 두었습니다. 사용자 저장할 때 실제로 인코딩하는 부분은 아직 연결하지 않았어요.",
-      "expected": [
-        {
-          "req_id": "SER-002",
-          "met": []
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-16T17:00:00",
-      "author": "김민준",
-      "text": "목록 페이징 지원을 추가했습니다. GET /v2/owners, GET /v2/pets에 page, size 파라미터로 페이지 단위 조회가 됩니다. 진료 방문 기록 목록 페이징은 아직입니다. V2RestControllersTests의 testGetOwnersPageSuccess, testGetPetsPageSuccess 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-016",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-17T11:25:00",
-      "author": "박지훈",
-      "text": "전화번호 형식 검증 넣었습니다. openapi.yml의 OwnerFields 스키마에 telephone을 숫자만 허용하는 pattern과 maxLength 20으로 설정했고 POST /owners, PUT /owners/{ownerId}에 적용됩니다.",
-      "expected": [
-        {
-          "req_id": "DAR-001",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-17T15:40:00",
-      "author": "이서연",
-      "text": "반려동물 생년월일 검증 완료. PetAgeValidator로 미래 날짜와 50년 넘은 날짜를 막았습니다. PetAgeValidatorTest의 shouldReturnFalseWhenBirthDateIsInFuture 통과.",
-      "expected": [
-        {
-          "req_id": "SFR-020",
-          "met": [
-            1,
-            2
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-18T13:15:00",
-      "author": "박지훈",
-      "text": "처리 시간 측정을 붙였습니다. CallMonitoringAspect로 Repository 호출 시간을 측정합니다. 임계치를 넘을 때 운영자 알림은 아직 구현하지 않았습니다.",
-      "expected": [
-        {
-          "req_id": "PER-001",
-          "met": [
-            1
-          ]
-        }
-      ]
-    },
-    {
-      "created_at": "2026-10-19T10:00:00",
-      "author": "박지훈",
-      "text": "API 명세 제공 작업입니다. 전체 REST API를 openapi.yml로 문서화했고 SwaggerConfig로 swagger-ui에서 명세를 조회할 수 있습니다.",
-      "expected": [
         {
           "req_id": "QUR-002",
           "met": [
@@ -272,13 +22,241 @@
       ]
     },
     {
-      "created_at": "2026-10-19T16:45:00",
+      "created_at": "2026-02-05T17:58:00",
+      "author": "김민준",
+      "text": "Swagger 기반 Mock API 작성했습니다. SwaggerConfig를 추가해서 Account, Product, Cart, Coupon, Order 전체 API 스펙을 Swagger UI에서 볼 수 있습니다. 아직 실제 로직 없이 하드코딩된 응답이라 상품 목록·상세(GET /api/products, GET /api/products/{productId})는 실제 데이터 연동 전입니다. PR #2",
+      "expected": [
+        {
+          "req_id": "QUR-001",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-02-07T17:51:00",
+      "author": "김민준",
+      "text": "회원가입·로그인·내 정보 조회 구현했습니다. POST /api/accounts/signup은 이미 쓰는 이메일이면 거부하고, 비밀번호는 BCryptPasswordEncoder로 암호화해 저장합니다. POST /api/accounts/login에 성공하면 JwtProvider로 토큰을 발급하고 틀리면 401을 돌려줍니다. GET /api/accounts/me로 내 정보를 조회합니다. JwtAuthenticationFilter를 붙여 signup·login 외 API는 토큰이 있어야 호출되고 세션은 STATELESS로 두었습니다. AccountServiceTest 통과. PR #3",
+      "expected": [
+        {
+          "req_id": "SFR-001",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-002",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-003",
+          "met": [
+            1
+          ]
+        },
+        {
+          "req_id": "SER-001",
+          "met": [
+            1
+          ]
+        },
+        {
+          "req_id": "SER-002",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-02-17T10:30:00",
       "author": "이서연",
-      "text": "SFR-011 진료 방문 기록 삭제도 마무리했습니다. DELETE /visits/{visitId}, testDeleteVisitSuccess 통과.",
+      "text": "쿠폰 등록·발급 구현했습니다. POST /api/coupons로 쿠폰명·할인 금액·유형·발급 수량을 받아 등록하고, POST /api/coupons/{couponId}/issue로 발급합니다. 수량이 소진되면 거부하고 이미 받은 쿠폰은 409로 막습니다. 중복 발급은 Redis에서 먼저 거르고 IssuedCoupon 테이블의 고유 제약으로 한 번 더 막습니다. GET /api/coupons/me로 내 쿠폰을 조회합니다. PR #4",
       "expected": [
         {
           "req_id": "SFR-011",
           "met": [
+            1
+          ]
+        },
+        {
+          "req_id": "SFR-012",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "req_id": "SFR-013",
+          "met": [
+            1
+          ]
+        },
+        {
+          "req_id": "DAR-001",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-02-18T01:37:00",
+      "author": "이서연",
+      "text": "이벤트 쿠폰 대기열 구현했습니다. POST /api/events/{eventId}/queue로 대기열에 진입하고, GET /api/events/{eventId}/queue/status로 순번과 입장 여부를 조회하며, 입장한 회원만 POST /api/events/{eventId}/coupons/{couponId}/issue로 발급받습니다. 진입과 발급은 enter_queue.lua와 request_issue.lua로 원자 처리해서 동시 요청에도 중복 진입이나 초과 발급이 없고, k6 coupon-load-test.js로 1,000명 동시 요청을 확인했습니다. 관리자용 EventAdminController로 대기열·발급 활성화와 입장 임계치 조회·변경도 넣었습니다. EventQueueAppServiceTest 통과.",
+      "expected": [
+        {
+          "req_id": "SFR-014",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "req_id": "PER-001",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "req_id": "SFR-015",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-02-18T18:34:00",
+      "author": "이서연",
+      "text": "쿠폰 대기열 부하 테스트를 다듬었습니다. coupon-load-test.js에서 유저 배열을 미리 만들고 대기 시간을 줄였고, k6 결과는 Grafana의 k6-dashboard.json 대시보드에서 확인할 수 있습니다. PR #5",
+      "expected": [
+        {
+          "req_id": "QUR-003",
+          "met": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-02-20T22:54:00",
+      "author": "김민준",
+      "text": "장바구니 기능 구현했습니다. POST /api/carts/items로 담고(이미 있는 상품은 수량 합산), GET /api/carts로 조회, PATCH /api/carts/items/{cartItemId}로 수량 변경, DELETE /api/carts/items/{cartItemId}로 삭제합니다. 상품 정보는 아직 MockProductPort를 씁니다. CartAppServiceTest의 addNewItem, addExistingItem, updateQuantity, deleteItem 통과. PR #6",
+      "expected": [
+        {
+          "req_id": "SFR-009",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-010",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-03-02T14:46:00",
+      "author": "박지훈",
+      "text": "주문 준비 기능 구현했습니다. POST /api/orders로 주문하면 재고를 차감해 선점하는 OrderSession을 만들고, 사용 가능한 쿠폰(사용·만료 제외)과 배송지 목록(기본 배송지 우선)을 같이 내려줍니다. POST /api/orders/sessions/{sessionId}/polling으로 세션을 유지하고, POST /api/orders/sessions/{sessionId}/cancel로 취소하면 재고를 복구합니다. OrderSessionScheduler가 1분 넘게 폴링이 없는 세션을 만료시키고 재고를 돌려놓습니다. 배송지 등록·수정 API는 아직 없습니다. OrderSessionRepositoryTest, CouponPortServiceTest 통과. PR #7",
+      "expected": [
+        {
+          "req_id": "SFR-016",
+          "met": [
+            1,
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-017",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "req_id": "SFR-013",
+          "met": [
+            2
+          ]
+        },
+        {
+          "req_id": "SFR-004",
+          "met": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-03-07T10:16:00",
+      "author": "박지훈",
+      "text": "주문·결제 구현했습니다. POST /api/orders/payment에서 쿠폰 할인을 적용해 금액을 계산하고 결제가 승인되면 주문을 확정합니다. 결제가 실패하면 CouponPortService.cancelUsage로 쿠폰을 되돌립니다. 결제는 PaymentPortService가 실제 PG 연동 없이 랜덤으로 성공·실패를 돌려주는 임시 구현입니다. 재고는 ProductRepository의 비관적 락으로 동시 주문에도 음수가 되지 않고, 상품 ID 순으로 정렬해 락을 잡아 교착 상태를 막았습니다. PR #8",
+      "expected": [
+        {
+          "req_id": "SFR-018",
+          "met": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "req_id": "PER-002",
+          "met": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-03-07T11:28:00",
+      "author": "박지훈",
+      "text": "주문 동시성 부하 테스트 추가했습니다. k6 order-load-test.js로 동시 주문을 돌려 재고 정합성을 확인했고, 주문 처리 지표는 Grafana order-dashboard.json 대시보드로 볼 수 있습니다. PR #9",
+      "expected": [
+        {
+          "req_id": "PER-002",
+          "met": [
+            3
+          ]
+        },
+        {
+          "req_id": "QUR-003",
+          "met": [
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "created_at": "2026-03-07T13:17:00",
+      "author": "박지훈",
+      "text": "주문 조회 기능 구현했습니다. GET /api/orders로 내 주문 목록을, GET /api/orders/{orderId}로 주문 상세를 조회합니다. OrderReadService를 추가했습니다. PR #10",
+      "expected": [
+        {
+          "req_id": "SFR-019",
+          "met": [
+            1,
             2
           ]
         }
