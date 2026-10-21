@@ -22,7 +22,7 @@ from langsmith import traceable
 from langsmith.run_helpers import get_current_run_tree
 from pydantic import BaseModel
 
-from agent.config import get_settings
+from agent.config import get_settings, today_of
 from agent.criteria_rules import beyond_source
 from agent.dashboard import build_dashboard
 from agent.rtm_export import export_rtm
@@ -339,7 +339,7 @@ async def dashboard(as_of: str | None = None, stale_days: int = 7):
     """진척 집계. as_of를 주면 그날까지의 보고만 반영한다(엑셀·채팅과 같은 함수)."""
     deps: SupervisorDeps = app.state.deps
     return {"project_name": deps.settings.project_name,
-            **build_dashboard(deps.store, _check_date(as_of), stale_days)}
+            **build_dashboard(deps.store, _check_date(as_of), stale_days, today=today_of(deps.settings))}
 
 
 @app.get("/export/rtm.xlsx")
@@ -347,10 +347,10 @@ async def export_rtm_xlsx(as_of: str | None = None):
     """검수용 요구사항 추적표 엑셀(표지·요약 / 추적표 / 완료 보고 이력)."""
     deps: SupervisorDeps = app.state.deps
     as_of = _check_date(as_of)
-    stamp = (as_of or datetime.now().strftime("%Y-%m-%d")).replace("-", "")
+    stamp = (as_of or today_of(deps.settings).isoformat()).replace("-", "")
     name = f"요구사항추적표_{stamp}.xlsx"
     out = deps.settings.output_dir / f"rtm_{stamp}_{datetime.now().strftime('%H%M%S')}.xlsx"
-    export_rtm(deps.store, out, deps.settings.project_name, as_of)
+    export_rtm(deps.store, out, deps.settings.project_name, as_of, today=today_of(deps.settings))
     return FileResponse(out, filename=name,
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
