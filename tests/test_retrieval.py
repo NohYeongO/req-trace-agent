@@ -8,8 +8,8 @@ def test_search_finds_requirement_from_report_sentence(store, tmp_path):
     seed_criteria(store, force=False)
     s = RequirementSearch(store, HashEmbedder(), Glossary.load(DATA_DIR / "glossary" / "standard_terms.json"),
                           tmp_path / "idx")
-    hits = s.search("수의사 관리 API 등록 조회 수정 삭제 끝냈습니다", top_k=3)
-    assert hits[0]["req_id"] == "SFR-012"
+    hits = s.search("장바구니에 담긴 상품의 수량 변경과 삭제를 끝냈습니다", top_k=3)
+    assert hits[0]["req_id"] == "SFR-010"
     assert len({h["req_id"] for h in hits}) == len(hits)   # 요구사항 단위로 묶임
 
 

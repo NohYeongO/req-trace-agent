@@ -29,8 +29,8 @@ def _draft(client, text, author="김민준"):
 
 
 def test_draft_confirm_and_progress(client):
-    events = _draft(client, "보호자 등록 API 완료했습니다. POST /owners로 이름, 주소, 도시, 전화번호를 입력해 "
-                            "보호자를 신규 등록할 수 있고 OwnerControllerTests의 testCreateOwnerSuccess 통과.")
+    events = _draft(client, "회원가입 API 완료했습니다. 이메일·비밀번호·이름으로 회원 가입할 수 있고 "
+                            "POST /owners와 OwnerControllerTests의 testCreateOwnerSuccess로 확인했습니다.")
     types = [e["type"] for e in events]
     assert types[0] == "RunStarted" and types[-1] == "ConfirmRequired"
     assert {"ReportExtracted", "CandidatesFound", "ReportMapped", "MappingValidated", "EvidenceChecked"} <= set(types)
@@ -53,11 +53,11 @@ def test_draft_confirm_and_progress(client):
 
 
 def test_confirm_rejects_bad_links_without_losing_the_run(client):
-    events = _draft(client, "수의사 관리 API 전부 끝냈습니다. 수의사를 등록할 수 있다.")
+    events = _draft(client, "쿠폰 등록 API 끝냈습니다. 쿠폰명·할인 금액·유형·발급 수량으로 쿠폰을 등록할 수 있다.")
     run_id = events[0]["run_id"]
     other = client.get("/requirements/SFR-001").json()["criteria"][0]["id"]
     bad = client.post(f"/reports/{run_id}/confirm",
-                      json={"decision": "confirm", "links": [{"req_id": "SFR-012", "met_criteria": [other]}]})
+                      json={"decision": "confirm", "links": [{"req_id": "SFR-011", "met_criteria": [other]}]})
     assert bad.status_code == 400 and "조건이 아닌" in bad.json()["detail"]
     ok = client.post(f"/reports/{run_id}/confirm", json={"decision": "cancel"})
     assert ok.status_code == 200                               # 반려 후에도 같은 실행을 처리할 수 있다

@@ -17,10 +17,10 @@ def _xlsx(rows) -> bytes:
     return buf.getvalue()
 
 
-def test_demo_files_have_29_requirements():
-    xlsx = load_requirements_file(DATA_DIR / "requirements" / "petclinic_requirements.xlsx")
-    js = load_requirements_file(DATA_DIR / "requirements" / "petclinic_requirements.json")
-    assert len(xlsx.requirements) == len(js.requirements) == 29
+def test_demo_files_have_32_requirements():
+    xlsx = load_requirements_file(DATA_DIR / "requirements" / "zerofive_requirements.xlsx")
+    js = load_requirements_file(DATA_DIR / "requirements" / "zerofive_requirements.json")
+    assert len(xlsx.requirements) == len(js.requirements) == 32
     assert xlsx.requirements == js.requirements
     assert xlsx.warnings == []
 

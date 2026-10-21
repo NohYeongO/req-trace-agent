@@ -5,6 +5,7 @@ Base 코드는 모델명·경로·폴백값이 server.py와 LLM 파일마다 흩
 """
 import os
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -48,9 +49,9 @@ class Settings:
     # 완료 조건 초안이 검증에서 반려되면 다시 쓰게 하는 횟수
     criteria_retries: int = field(default_factory=lambda: int(_env("CRITERIA_RETRIES", "1")))
     # ── 완료 보고 정리 ──
-    # 근거(파일·API·테스트) 실존 확인 대상 산출물. 데모는 sh/fetch_artifacts.sh로 받는다.
+    # 근거 확인 대상 로컬 폴더(대안). 공용 저장소(artifact_repo_url)가 있으면 그것이 우선이다.
     artifact_root: Path | None = field(default_factory=lambda: _optional_path(
-        "ARTIFACT_ROOT", DATA_DIR / "artifacts" / "spring-petclinic-rest"))
+        "ARTIFACT_ROOT", DATA_DIR / "artifacts"))
     # 공용 Git 저장소(우선). 지정하면 확인할 때마다 납품 브랜치를 fetch해 푸시된 코드만 근거로 본다.
     artifact_repo_url: str = field(default_factory=lambda: _env("ARTIFACT_REPO_URL", ""))
     artifact_branch: str = field(default_factory=lambda: _env("ARTIFACT_BRANCH", "main"))
@@ -73,6 +74,11 @@ class Settings:
     qa_retries: int = field(default_factory=lambda: int(_env("QA_RETRIES", "2")))
     # '이번 주' 같은 기간 해석의 기준일을 고정할 때(데모·테스트). 비우면 오늘.
     fixed_today: str = field(default_factory=lambda: _env("FIXED_TODAY", ""))
+
+
+def today_of(settings: "Settings") -> date:
+    """날짜 해석 기준일 — FIXED_TODAY가 있으면 그날(데모·테스트), 없으면 오늘."""
+    return date.fromisoformat(settings.fixed_today) if settings.fixed_today else date.today()
 
 
 def _optional_path(env: str, default: Path) -> Path | None:

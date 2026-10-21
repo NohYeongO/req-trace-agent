@@ -1,28 +1,306 @@
 {
-  "note": "공공 SI의 '표준 용어 사전'처럼 한글 업무 용어를 코드·API에서 쓰는 영문 단어에 대응시킨다. 한글 요구사항과 영문 산출물 사이의 검색 질의 확장에 쓴다. 프로젝트마다 이 파일만 교체한다.",
-  "terms": {
-    "보호자": ["owner"], "소유자": ["owner"], "반려동물": ["pet"], "동물": ["pet"],
-    "종류": ["type", "pettype"], "수의사": ["vet"], "전문분야": ["specialty", "specialties"],
-    "진료": ["visit"], "방문": ["visit"], "예약": ["appointment", "schedule"],
-    "사용자": ["user"], "계정": ["user", "account"], "권한": ["role", "authority"], "역할": ["role"],
-    "등록": ["add", "create", "post", "save"], "생성": ["create", "add", "post"],
-    "조회": ["get", "find", "list"], "상세": ["get", "by id"], "목록": ["list"],
-    "검색": ["find", "search", "list", "filter"], "수정": ["update", "put"], "변경": ["update"],
-    "삭제": ["delete", "remove"], "페이징": ["page", "pagination", "size"], "페이지": ["page"],
-    "성": ["lastname", "last name"], "이름": ["name", "firstname"], "성명": ["firstname", "lastname"],
-    "전화번호": ["telephone", "phone"], "주소": ["address"], "도시": ["city"],
-    "생년월일": ["birthdate", "birth date"], "일자": ["date"],
-    "비밀번호": ["password"], "암호화": ["encoder", "bcrypt", "encode", "hash"], "해시": ["hash", "bcrypt"],
-    "접근통제": ["preauthorize", "hasrole", "security"], "인증": ["authentication", "security"],
-    "로그인": ["login", "authentication"], "잠금": ["lock", "lockout"], "실패": ["failure", "failed"],
-    "접속기록": ["audit", "access log"], "감사": ["audit"], "로그": ["log", "logger"],
-    "알림": ["notification", "alert", "notify"], "문자": ["sms"], "이메일": ["email", "mail"],
-    "수납": ["payment", "invoice"], "결제": ["payment"], "진료비": ["fee", "price", "invoice"],
-    "엑셀": ["excel", "xlsx", "export"], "다운로드": ["download", "export"],
-    "검증": ["validation", "validator", "valid"], "형식": ["pattern", "format"],
-    "오류": ["error", "exception"], "예외": ["exception"], "응답": ["response"],
-    "명세": ["openapi", "swagger", "specification"], "문서화": ["openapi", "swagger"],
-    "모니터링": ["monitoring", "monitor"], "처리 시간": ["call time", "stopwatch"], "수행 시간": ["call time", "stopwatch"],
-    "임계치": ["threshold"], "데이터 접근": ["repository", "jdbc", "jpa"], "저장소": ["repository"]
-  }
+ "note": "공공 SI의 '표준 용어 사전'처럼 한글 업무 용어를 코드·API에서 쓰는 영문 단어에 대응시킨다. 데모(커머스) 기준이며, 프로젝트마다 이 파일만 교체한다.",
+ "terms": {
+  "회원": [
+   "account",
+   "member",
+   "user"
+  ],
+  "회원가입": [
+   "signup",
+   "register",
+   "account"
+  ],
+  "계정": [
+   "account"
+  ],
+  "로그인": [
+   "login",
+   "authentication"
+  ],
+  "인증": [
+   "authentication",
+   "auth",
+   "jwt",
+   "token",
+   "security"
+  ],
+  "토큰": [
+   "token",
+   "jwt"
+  ],
+  "비밀번호": [
+   "password"
+  ],
+  "암호화": [
+   "encoder",
+   "bcrypt",
+   "encode",
+   "hash"
+  ],
+  "해시": [
+   "hash",
+   "bcrypt"
+  ],
+  "관리자": [
+   "admin"
+  ],
+  "권한": [
+   "role",
+   "authority",
+   "admin"
+  ],
+  "역할": [
+   "role"
+  ],
+  "내 정보": [
+   "me",
+   "my info"
+  ],
+  "배송지": [
+   "address",
+   "shipping address"
+  ],
+  "주소": [
+   "address"
+  ],
+  "기본 배송지": [
+   "default address"
+  ],
+  "상품": [
+   "product"
+  ],
+  "카테고리": [
+   "category"
+  ],
+  "인기": [
+   "popular"
+  ],
+  "검색": [
+   "search",
+   "find",
+   "keyword"
+  ],
+  "재고": [
+   "stock",
+   "inventory"
+  ],
+  "장바구니": [
+   "cart",
+   "cart item"
+  ],
+  "수량": [
+   "quantity"
+  ],
+  "쿠폰": [
+   "coupon"
+  ],
+  "할인": [
+   "discount"
+  ],
+  "발급": [
+   "issue",
+   "issued"
+  ],
+  "보유": [
+   "my",
+   "issued"
+  ],
+  "소진": [
+   "sold out",
+   "stock"
+  ],
+  "이벤트": [
+   "event"
+  ],
+  "대기열": [
+   "queue"
+  ],
+  "순번": [
+   "rank",
+   "queue status"
+  ],
+  "입장": [
+   "admit",
+   "admitted",
+   "entry"
+  ],
+  "임계치": [
+   "threshold"
+  ],
+  "활성화": [
+   "activate"
+  ],
+  "비활성화": [
+   "deactivate"
+  ],
+  "선착순": [
+   "first come",
+   "queue"
+  ],
+  "주문": [
+   "order"
+  ],
+  "주문 세션": [
+   "order session"
+  ],
+  "세션": [
+   "session"
+  ],
+  "폴링": [
+   "polling",
+   "poll"
+  ],
+  "선점": [
+   "reserve",
+   "deduct stock"
+  ],
+  "만료": [
+   "expire",
+   "expired"
+  ],
+  "결제": [
+   "payment"
+  ],
+  "승인": [
+   "approve",
+   "payment result"
+  ],
+  "환불": [
+   "refund"
+  ],
+  "취소": [
+   "cancel"
+  ],
+  "배송": [
+   "delivery",
+   "shipping"
+  ],
+  "리뷰": [
+   "review"
+  ],
+  "별점": [
+   "rating"
+  ],
+  "동시성": [
+   "concurrency",
+   "lock",
+   "lua"
+  ],
+  "동시": [
+   "concurrent",
+   "concurrency"
+  ],
+  "비관적 락": [
+   "pessimistic lock",
+   "for update"
+  ],
+  "락": [
+   "lock"
+  ],
+  "교착": [
+   "deadlock"
+  ],
+  "부하 테스트": [
+   "load test",
+   "k6"
+  ],
+  "원자": [
+   "atomic",
+   "lua script"
+  ],
+  "중복": [
+   "duplicate",
+   "unique"
+  ],
+  "고유 제약": [
+   "unique constraint"
+  ],
+  "캐시": [
+   "redis",
+   "cache"
+  ],
+  "등록": [
+   "create",
+   "add",
+   "post",
+   "save"
+  ],
+  "생성": [
+   "create",
+   "post"
+  ],
+  "조회": [
+   "get",
+   "find",
+   "list"
+  ],
+  "상세": [
+   "get",
+   "by id",
+   "detail"
+  ],
+  "목록": [
+   "list"
+  ],
+  "수정": [
+   "update",
+   "patch",
+   "put"
+  ],
+  "변경": [
+   "update",
+   "patch"
+  ],
+  "삭제": [
+   "delete",
+   "remove"
+  ],
+  "페이지": [
+   "page",
+   "pagination"
+  ],
+  "생성 일시": [
+   "created at",
+   "auditing"
+  ],
+  "수정 일시": [
+   "updated at",
+   "auditing"
+  ],
+  "이력": [
+   "auditing",
+   "history"
+  ],
+  "명세": [
+   "openapi",
+   "swagger",
+   "specification"
+  ],
+  "문서화": [
+   "openapi",
+   "swagger"
+  ],
+  "응답": [
+   "response",
+   "api result"
+  ],
+  "오류": [
+   "error",
+   "exception",
+   "exception handler"
+  ],
+  "모니터링": [
+   "monitoring",
+   "grafana",
+   "dashboard"
+  ],
+  "대시보드": [
+   "dashboard",
+   "grafana"
+  ],
+  "지표": [
+   "metrics"
+  ]
+ }
 }

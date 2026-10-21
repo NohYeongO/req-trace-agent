@@ -21,7 +21,7 @@ from fastmcp import FastMCP
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 load_dotenv()
 
-from agent.config import get_settings   # noqa: E402
+from agent.config import get_settings, today_of   # noqa: E402
 from agent.dashboard import build_dashboard   # noqa: E402
 from agent.retrieval import Glossary, RequirementSearch, make_embedder   # noqa: E402
 from agent.store import ProjectStore    # noqa: E402
@@ -84,7 +84,7 @@ def list_reports(since: str = "", until: str = "", author: str = "", req_id: str
 @mcp.tool()
 def get_progress(as_of: str = "") -> dict:
     """진척 집계. as_of(YYYY-MM-DD)를 주면 그날 기준. 추이(trend)는 크기 때문에 뺀다."""
-    dash = build_dashboard(store(), as_of or None)
+    dash = build_dashboard(store(), as_of or None, today=today_of(get_settings()))
     dash.pop("trend")
     return dash
 

@@ -46,12 +46,13 @@ case "$CONFIRM" in
     *) echo "중단합니다."; exit 1 ;;
 esac
 
-# ── 데모 산출물(근거 확인용) — 공용 저장소·로컬 폴더를 지정하지 않았고 아직 없으면 받아온다 ──
+# ── 근거 확인 대상 표시 ──
 if [ -n "${ARTIFACT_REPO_URL:-}" ]; then
     echo "근거 확인: 공용 저장소 $ARTIFACT_REPO_URL (${ARTIFACT_BRANCH:-main})"
-elif [ -z "${ARTIFACT_ROOT:-}" ] && [ ! -d data/artifacts/spring-petclinic-rest/src ]; then
-    echo "데모 산출물(spring-petclinic-rest)이 없어 받아옵니다 (완료 보고 근거 확인용)..."
-    bash sh/fetch_artifacts.sh || echo "⚠️  받기 실패 — 근거 확인은 '확인 불가'로 표시됩니다."
+elif [ -n "${ARTIFACT_ROOT:-}" ]; then
+    echo "근거 확인: 로컬 폴더 $ARTIFACT_ROOT"
+else
+    echo "⚠️  ARTIFACT_REPO_URL·ARTIFACT_ROOT가 없어 근거 확인은 '확인 불가'로 표시됩니다."
 fi
 
 # ── 임베딩 — 완료 보고 검색(RAG)은 로컬 bge-m3를 쓴다(보고 원문을 외부로 보내지 않음).
