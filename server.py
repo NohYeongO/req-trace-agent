@@ -178,6 +178,13 @@ def _sse(payload: dict | str) -> str:
     return f"data: {data}\n\n"
 
 
+def _trace(name: str, base: dict | None = None, **metadata) -> dict:
+    """LangSmith 트레이스 이름·태그·메타데이터 — 최상위가 모두 'LangGraph'로 찍혀 채팅·보고·산출물을
+    구분하기 어려웠다. 실행 설정(configurable 등)은 그대로 두고 덧붙인다."""
+    meta = {k: v for k, v in metadata.items() if v not in (None, "")}
+    return {**(base or {}), "run_name": name, "tags": [name.split(":")[0]], "metadata": meta}
+
+
 async def _stream_graph(graph, state, result: dict, config: dict | None = None):
     """그래프 실행을 SSE 줄로 바꾼다. 노드별 진행 이벤트(updates)와 노드가 실행 중에 흘리는
     이벤트(custom: 답변 토큰, 건별 진행률)를 보낸다. 노드는 events 전체 목록을 돌려주므로
@@ -210,7 +217,8 @@ async def chat_stream(message: str, thread_id: str = "default", author: str = ""
         history = deps.session_store.load(thread_id)
         result: dict = {}
         async for line in _stream_graph(app.state.chat_graph,
-                                        initial_state(message, thread_id, history, author), result):
+                                        initial_state(message, thread_id, history, author), result,
+                                        _trace("chat", thread_id=thread_id, author=author)):
             yield line
         final = result.get("final", "")
         yield _sse({"type": "FinalAnswer", "reply": final, "prompt": result.get("last_prompt", ""),
@@ -281,7 +289,8 @@ async def draft_criteria_stream(req_ids: str = "", overwrite: bool = False):
     async def gen():
         result: dict = {}
         async for line in _stream_graph(app.state.criteria_graph,
-                                        initial_criteria_state(ids, overwrite), result):
+                                        initial_criteria_state(ids, overwrite), result,
+                                        _trace("criteria_draft", targets=len(ids or []) or "all")):
             yield line
         yield _sse({"type": "Done", "saved": result.get("saved", []),
                     "failed": result.get("failed", {}), "cost_usd": result.get("cost_usd", 0.0)})
@@ -316,7 +325,8 @@ async def draft_report(body: ReportDraft):
         async for line in _stream_graph(app.state.intake_graph,
                                         initial_intake_state(body.author.strip(), body.text.strip(), evidence,
                                                              list(dict.fromkeys(body.req_ids))),
-                                        result, intake_config(run_id)):
+                                        result, _trace("report_intake", intake_config(run_id), run_id=run_id,
+                                                       author=body.author.strip())):
             yield line
         yield _sse("[DONE]")
 
@@ -351,7 +361,8 @@ async def confirm_report(run_id: str, body: ReportDecision):
             app.state.deps.store.check_links([l.model_dump() for l in body.links])
         except ValueError as e:
             raise HTTPException(400, str(e))
-    result = await graph.ainvoke(Command(resume=body.model_dump()), config)
+    result = await graph.ainvoke(Command(resume=body.model_dump()),
+                                 _trace("report_confirm", config, run_id=run_id, decision=body.decision))
     return {"report_id": result.get("report_id") or None, "changes": result.get("changes", []),
             "message": result.get("final", "")}
 
@@ -447,7 +458,8 @@ async def draft_deliverable(kind: str, body: DeliverableDraft):
     async def gen():
         result: dict = {}
         state = initial_deliverable_state(body.source, _DOC_TYPES[kind])
-        async for line in _stream_graph(app.state.deliverable_graph, state, result):
+        async for line in _stream_graph(app.state.deliverable_graph, state, result,
+                                        _trace(f"deliverable:{_DOC_TYPES[kind]}", source=body.source)):
             yield line
         yield _sse({"type": "Done", "doc_id": result.get("doc_id") or None, "error": result.get("error") or None,
                     "cost_usd": result.get("cost_usd", 0.0)})
