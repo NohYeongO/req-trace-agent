@@ -1,33 +1,31 @@
-"""deliv_write — 서술 섹션(실패 원인 분석, 종합 의견)을 quality LLM이 쓴다(토큰 스트리밍).
+"""deliv_write — 문서의 AI 작업(서술·이름 추정)을 quality LLM이 한다.
 
-검증을 아직 못 넘은 섹션만 다시 쓴다. 실패 원인 분석에는 [실패 원인] 사실만 준다 — 범위를 좁혀야
-작은 모델이 다른 수치를 섞지 않는다.
+검증을 아직 못 넘은 작업만 다시 한다. 서술은 토큰을 흘려 화면에 실시간으로 보이고, 이름 추정(JSON)은
+작업이 끝날 때마다 진행 이벤트를 보낸다.
 """
 from langgraph.config import get_stream_writer
 from langsmith import traceable
 
+from ..deliverables import registry
 from ..deps import SupervisorDeps
 from ..qa import clean_answer
 from ..state import DeliverableState
 from .common import add_cost, with_event
 
 
-def section_facts(doc: dict, sid: str) -> str:
-    if sid == "failure_analysis":
-        return "\n".join(l for l in doc["facts"].splitlines() if l.startswith("[실패 원인]"))
-    return doc["facts"]
-
-
 @traceable(name="deliv_write_node")
 async def deliv_write_node(state: DeliverableState, deps: SupervisorDeps) -> dict:
     writer = get_stream_writer()
+    mod = registry.get(state["doc_type"])
     doc, attempt, cost = state["doc"], state["attempts"] + 1, state.get("cost_usd", 0.0)
-    for sid in state["pending"]:
-        text, usage = await deps.quality_llm.write_section(
-            sid, section_facts(doc, sid), state["feedback"].get(sid) or None,
-            on_token=lambda piece, sid=sid: writer({"type": "SectionToken", "section": sid, "delta": piece,
-                                                    "attempt": attempt}))
-        next(s for s in doc["sections"] if s["id"] == sid)["text"] = clean_answer(text)
+    drafts = dict(state.get("drafts", {}))
+    for i, task in enumerate(state["pending"], 1):
+        value, usage = await mod.write_task(
+            deps.quality_llm, doc, task, state["feedback"].get(task) or None,
+            on_token=lambda piece, t=task: writer({"type": "SectionToken", "section": t, "delta": piece,
+                                                   "attempt": attempt}))
+        drafts[task] = clean_answer(value) if isinstance(value, str) else value
         cost = add_cost({"cost_usd": cost}, usage)
+        writer({"type": "TaskDone", "task": task, "index": i, "of": len(state["pending"]), "attempt": attempt})
     event = {"type": "SectionsWritten", "sections": state["pending"], "attempt": attempt}
-    return {"doc": doc, "attempts": attempt, "cost_usd": cost, "events": with_event(state, event)}
+    return {"drafts": drafts, "attempts": attempt, "cost_usd": cost, "events": with_event(state, event)}

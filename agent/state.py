@@ -82,13 +82,15 @@ def initial_intake_state(author: str, text: str, evidence: list[dict] | None = N
 
 
 class DeliverableState(TypedDict, total=False):
-    source: str                 # 테스트 결과 자료 이름(demo:<이름> | upload:<id>)
+    doc_type: str               # test_report | dev_spec (agent/deliverables/registry.py)
+    source: str                 # 자료 이름 — 테스트 결과(demo:<이름> | upload:<id>), 개발 명세서는 repo
     analysis: dict              # MCP analyze_test_results 결과(케이스·커버리지·단위/통합 구분)
     progress: dict              # MCP get_progress 결과(요구사항 진척)
     reports: list[dict]         # MCP list_reports 결과(근거 포함 완료 보고)
     doc: dict                   # 문서 본문(섹션 목록·facts)
-    pending: list[str]          # 아직 검증을 통과하지 못한 서술 섹션 id
-    feedback: dict              # 섹션별 반려 사유
+    pending: list[str]          # 아직 검증을 통과하지 못한 AI 작업(서술 섹션·이름 추정)
+    drafts: dict                # 작업별 AI 결과(검증 전)
+    feedback: dict              # 작업별 반려 사유
     attempts: int
     fallbacks: list[str]        # 끝내 검증을 못 넘어 코드 문장으로 대체한 섹션
     doc_id: int
@@ -97,7 +99,8 @@ class DeliverableState(TypedDict, total=False):
     events: list[dict]
 
 
-def initial_deliverable_state(source: str) -> DeliverableState:
-    return {"source": source, "analysis": {}, "progress": {}, "reports": [], "doc": {}, "pending": [],
+def initial_deliverable_state(source: str, doc_type: str = "test_report") -> DeliverableState:
+    return {"doc_type": doc_type, "source": source, "analysis": {}, "progress": {}, "reports": [], "doc": {},
+            "pending": [], "drafts": {},
             "feedback": {}, "attempts": 0, "fallbacks": [], "doc_id": 0, "error": "", "cost_usd": 0.0,
             "events": []}

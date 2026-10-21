@@ -11,11 +11,17 @@
 """
 from collections import defaultdict
 
+from ..qa import check_answer
 from ..store.db import DONE, NOT_STARTED, PARTIAL
 from .junit import ERROR, FAILED, PASSED, SKIPPED, summarize, total_coverage
 
 DOC_TYPE = "test_report"
 TITLE = "테스트 결과 보고서"
+COLLECT_TOOL = "analyze_test_results"
+
+
+def collect_args(source: str) -> dict:
+    return {"source": source}
 KINDS = ("단위", "통합", "미확인")
 
 
@@ -213,6 +219,7 @@ def build(results: dict, kinds: dict[str, dict], progress: dict, reports: list[d
     facts.append(f"[진척] 요구사항 {progress['overall']['requirements']}건 중 완료 {progress['overall']['counts'][DONE]}건, "
                  f"진척률 {progress['overall']['requirement_rate']}%")
     return {"doc_type": DOC_TYPE, "title": TITLE, "meta": meta, "sections": sections, "facts": "\n".join(facts),
+            "tasks": [s["id"] for s in sections if s["kind"] == "ai"],
             "numbers": {"total": total, "by_kind": by_kind, "coverage": cov, "linked": len(req_links),
                         "untested": [r["id"] for r in untested], "failed_reqs": failed_reqs}}
 
@@ -231,3 +238,43 @@ def fallback_text(section: dict, doc: dict) -> str:
         lines.append(f"완료·부분완료인데 테스트가 연결되지 않은 요구사항 {len(n['untested'])}건은 테스트 보완이 필요하다.")
     return " ".join(lines)
 
+
+
+# ── 작성 그래프가 부르는 작업 함수(dev_spec과 같은 형식) ────────────────────
+def section_facts(doc: dict, sid: str) -> str:
+    """실패 원인 분석에는 [실패 원인] 사실만 준다 — 범위를 좁혀야 작은 모델이 다른 수치를 섞지 않는다."""
+    if sid == "failure_analysis":
+        return "\n".join(l for l in doc["facts"].splitlines() if l.startswith("[실패 원인]"))
+    return doc["facts"]
+
+
+def _section(doc: dict, sid: str) -> dict:
+    return next(s for s in doc["sections"] if s["id"] == sid)
+
+
+async def write_task(llm, doc: dict, task: str, feedback: str | None, on_token=None):
+    return await llm.write_section(task, section_facts(doc, task), feedback, on_token=on_token)
+
+
+def check_task(doc: dict, task: str, value) -> list[str]:
+    problems = check_answer(value, doc["facts"], "")
+    if not value.strip():
+        problems.append("빈 글")
+    if "**" in value:
+        problems.append("굵게 표시(**) 없이 쓸 것")
+    return problems
+
+
+def apply_task(doc: dict, task: str, value) -> None:
+    _section(doc, task)["text"] = value
+
+
+def fallback_task(doc: dict, task: str) -> None:
+    sec = _section(doc, task)
+    sec["text"], sec["fallback"] = fallback_text(sec, doc), True
+
+
+def finalize(doc: dict) -> None:
+    for sec in doc["sections"]:
+        if sec["kind"] == "ai":
+            sec["facts"] = section_facts(doc, sec["id"])

@@ -64,12 +64,38 @@ class FakeLLM:
             links.append({"req_id": "ZZZ-999", "met": [1], "reason": "지어낸 매핑"})
         return links, self._usage(text, str(links))
 
+    @traceable(run_type="llm", name="fake.name_items")
+    async def name_items(self, kind: str, items: str, feedback: str | None = None) -> tuple[dict, dict]:
+        """'- key: …' 줄마다 결정적인 이름. 컬럼은 영문 단어를 간단한 한글로, 인터페이스는 핸들러 이름으로."""
+        words = {"id": "ID", "at": "일시", "name": "이름", "price": "가격", "quantity": "수량", "account": "계정",
+                 "status": "상태", "created": "생성", "updated": "수정", "amount": "금액", "used": "사용 여부"}
+        out = {}
+        if kind == "columns":
+            m = re.match(r"테이블 (\S+)", items)
+            if m:
+                out["__table__"] = f"{m.group(1)} 테이블"
+        for line in items.splitlines():
+            m = re.match(r"- ([^:\s]+):", line)
+            if not m:
+                continue
+            key = m.group(1)
+            if kind == "columns":
+                out[key] = " ".join(words.get(w, w) for w in key.split("_"))
+                if not re.search(r"[가-힣]", out[key]) and out[key] != "ID":
+                    out[key] += " 항목"
+            else:
+                out[key] = "API 기능"
+        return out, self._usage(items[:2000], str(out))
+
     @traceable(run_type="llm", name="fake.write_section")
     async def write_section(self, kind: str, facts: str, feedback: str | None = None,
                             on_token=None) -> tuple[str, dict]:
         """사실 문단을 보고서 문체로 옮긴다(결정적). 실패 원인은 원인마다 한 줄."""
         lines = facts.splitlines()
-        if kind == "failure_analysis":
+        if kind == "spec_opinion":
+            head = next((l for l in lines if l.startswith("[규모]")), "")
+            reply = head.replace("[규모] ", "개발 명세서 분석 결과 ") + "이다. AI가 추정한 논리명은 담당자 검토가 필요하다."
+        elif kind == "failure_analysis":
             reply = "\n".join("- " + l.replace("[실패 원인] ", "") + " 원인을 조치한 뒤 재수행이 필요하다."
                               for l in lines if l.startswith("[실패 원인]"))
         else:

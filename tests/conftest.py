@@ -68,7 +68,7 @@ class StubMCP:
                                                        arguments.get("since") or None,
                                                        arguments.get("until") or None,
                                                        arguments.get("req_id") or None)}
-        if name in ("analyze_test_results", "list_test_results"):
+        if name in ("analyze_test_results", "list_test_results", "analyze_source_spec"):
             import mcp_server_artifact as srv
             srv._checker = self.checker
             fn = getattr(srv, name)
