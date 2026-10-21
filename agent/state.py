@@ -55,8 +55,10 @@ class IntakeState(TypedDict, total=False):
     text: str
     summary: str
     query: str                  # 요구사항 검색 질의(LLM이 업무 용어로 다시 씀)
-    mentioned: list[str]        # 보고에 직접 적힌 요구사항 ID
-    evidence: list[dict]        # 정규식으로 뽑은 근거 [{type, value}]
+    mentioned: list[str]        # 보고에 직접 적힌 요구사항 ID (양식에서 고른 것 포함)
+    selected: list[str]         # 작성자가 양식에서 고른 요구사항 ID — AI가 매핑하지 않아도 확인 카드에 넣는다
+    form_evidence: list[dict]   # 양식 근거 칸으로 받은 근거(정규화됨)
+    evidence: list[dict]        # 양식 근거 + 문장에서 정규식으로 뽑은 근거 [{type, value, source}]
     candidates: list[dict]      # 후보 요구사항(조건 포함)
     links: list[dict]           # 매핑 결과 [{req_id, met, reason}]
     feedback: str               # 매핑 반려 사유(비어 있으면 통과)
@@ -70,8 +72,10 @@ class IntakeState(TypedDict, total=False):
     events: list[dict]
 
 
-def initial_intake_state(author: str, text: str) -> IntakeState:
+def initial_intake_state(author: str, text: str, evidence: list[dict] | None = None,
+                         req_ids: list[str] | None = None) -> IntakeState:
     return {"author": author, "text": text, "summary": "", "query": "", "mentioned": [],
+            "selected": list(req_ids or []), "form_evidence": list(evidence or []),
             "evidence": [], "candidates": [], "links": [], "feedback": "", "attempts": 0,
             "evidence_check": [], "decision": {}, "report_id": 0, "changes": [], "final": "",
             "cost_usd": 0.0, "events": []}

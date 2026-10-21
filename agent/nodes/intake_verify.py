@@ -15,9 +15,11 @@ from .common import with_event
 async def intake_verify_node(state: IntakeState, deps: SupervisorDeps) -> dict:
     checked = []
     if state["evidence"]:
-        result, _ = await with_retry(deps.mcp.call_tool, "verify_evidence",
-                                     {"items": state["evidence"]})
-        checked = result["results"]
+        items = [{"type": e["type"], "value": e["value"]} for e in state["evidence"]]
+        result, _ = await with_retry(deps.mcp.call_tool, "verify_evidence", {"items": items})
+        # 확인 결과에 출처(양식에 직접 입력 / 문장에서 찾음)를 다시 붙인다 — 확인 카드에 표시
+        source = {(e["type"], e["value"]): e.get("source") for e in state["evidence"]}
+        checked = [{**c, "source": source.get((c["type"], c["value"]))} for c in result["results"]]
     counts = {s: sum(1 for c in checked if c["status"] == s)
               for s in ("found", "not_found", "unchecked")}
     return {"evidence_check": checked,

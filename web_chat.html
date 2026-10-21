@@ -99,6 +99,13 @@
   th { color: var(--muted); font-weight: 500; }
   tbody tr.req { cursor: pointer; }
   tbody tr.req:hover, tbody tr.req.open { background: #2a2a3e; }
+  .evrow { display: flex; gap: 6px; margin: 4px 0; }
+  .evrow select { width: 96px; flex: none; }
+  .evrow input { flex: 1; min-width: 0; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 12px; background: var(--chip, #e8eefc); font-size: 12px; }
+  .chip a { cursor: pointer; margin-left: 4px; }
+  .req { font-size: 11px; color: #c0392b; margin-left: 4px; }
+  .hint { font-size: 12px; color: var(--muted); margin-left: 6px; font-weight: normal; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; white-space: nowrap; }
   .badge.none { background: #3a3a52; color: var(--muted); }
   .badge.draft { background: #4a3d1e; color: #f0c674; }
@@ -256,16 +263,40 @@
     <section v-else-if="tab === 'report'" class="page">
       <div class="card wide">
         <h2>완료 보고</h2>
-        <p>개발을 마치면 한 일을 자유롭게 적어 주세요. 고유번호(SFR-005), API(GET /owners), 파일·테스트 이름을 함께 적으면
-           더 정확해집니다. AI가 관련 요구사항과 충족한 완료 조건을 정리해 제안하고, <b>확인</b>을 눌러야 저장됩니다.</p>
+        <p>개발을 마치면 <b>무엇을 끝냈는지</b>는 자유롭게 쓰고, <b>구현 근거</b>(PR·커밋·API·테스트 등)는 칸에 적어 주세요.
+           근거는 공용 저장소에서 실제로 있는지 확인되고 검수 추적표의 '구현 근거'가 됩니다. AI가 관련 요구사항과 충족한
+           완료 조건을 정리해 제안하고, <b>확인</b>을 눌러야 저장됩니다.</p>
         <div class="field">작성자
           <input v-model="author" placeholder="이름" style="max-width:220px" @change="saveAuthor" />
         </div>
-        <div class="field">보고 내용
-          <textarea v-model="reportText" placeholder="예: 보호자 검색은 성(lastName) 검색만 붙였습니다. GET /owners?lastName= 으로 조회되고, OwnerRestControllerV1Tests의 testGetOwnersListSuccess 통과. 전화번호 검색은 아직입니다."></textarea>
+        <div class="field"><span>무엇을 끝냈나요? <span class="req">필수</span></span>
+          <textarea v-model="reportText" placeholder="예: 장바구니 수량 변경이랑 삭제 기능 끝냈습니다. 수량은 1~99까지만 허용하고, 삭제하면 목록에서 바로 빠집니다."></textarea>
+        </div>
+        <div class="field"><span>구현 근거 <span class="req">최소 1개</span>
+          <span class="hint">문장에 적은 근거도 인정됩니다. [문장에서 채우기]로 칸에 옮길 수 있어요.</span></span>
+        </div>
+        <div v-for="(ev, i) in evRows" :key="i" class="evrow">
+          <select v-model="ev.type">
+            <option v-for="t in evTypes" :key="t.id" :value="t.id">{{ t.label }}</option>
+          </select>
+          <input v-model="ev.value" :placeholder="evTypes.find(t => t.id === ev.type)?.ph" />
+          <button class="btn" title="삭제" @click="evRows.splice(i, 1)">✕</button>
         </div>
         <div class="toolbar">
-          <button class="btn primary" :disabled="intake.running || !!intake.confirm" @click="draftReport">
+          <button class="btn" @click="evRows.push({ type: 'api', value: '' })">+ 근거 추가</button>
+          <button class="btn" :disabled="!reportText.trim()" @click="fillEvidence">문장에서 채우기</button>
+          <span v-if="fillMsg" class="hint">{{ fillMsg }}</span>
+        </div>
+        <div class="field"><span>관련 요구사항 <span class="hint">선택 — 알면 고르고, 모르면 AI가 찾습니다</span></span></div>
+        <div class="toolbar">
+          <select v-model="reqPick" @change="pickReq">
+            <option value="">요구사항 선택…</option>
+            <option v-for="r in reqs.filter(r => !reqSel.includes(r.id))" :key="r.id" :value="r.id">{{ r.id }} {{ r.name }}</option>
+          </select>
+          <span v-for="rid in reqSel" :key="rid" class="chip">{{ rid }} <a @click="reqSel.splice(reqSel.indexOf(rid), 1)">✕</a></span>
+        </div>
+        <div class="toolbar">
+          <button class="btn primary" :disabled="intake.running || !!intake.confirm || !reportText.trim()" @click="draftReport">
             {{ intake.running ? 'AI가 정리하는 중…' : 'AI로 정리하기' }}
           </button>
         </div>
@@ -410,11 +441,12 @@
         <button class="btn" :disabled="!addId" @click="addRequirement">추가</button>
       </div>
       <div class="field">근거 확인 (보고에 적힌 이름이 산출물에 실제로 있는지)</div>
-      <div v-if="!evidence.length" style="font-size:12px;color:var(--muted)">보고에서 파일·API·테스트 이름을 찾지 못했습니다.</div>
+      <div v-if="!evidence.length" class="notice err" style="font-size:12px">구현 근거가 없습니다. 이대로 저장하면 검수 추적표의 '구현 근거'가 비어 있게 됩니다.</div>
       <div v-for="(e, i) in evidence" :key="i" class="ev">
         <span :class="e.status === 'found' ? 'ok' : e.status === 'not_found' ? 'no' : ''">
           {{ e.status === 'found' ? '✓' : e.status === 'not_found' ? '✗' : '–' }}</span>
         <span>[{{ evLabel[e.type] || e.type }}]</span> <b>{{ e.value }}</b>
+        <span v-if="e.source" class="badge" :class="e.source === 'form' ? 'st-done' : 'draft'">{{ e.source === 'form' ? '직접 입력' : '문장에서 찾음' }}</span>
         <span>{{ e.status === 'not_found' ? '산출물에서 찾지 못함' : (e.where || '') }}</span>
       </div>
       <div v-if="error" class="notice err">{{ error }}</div>
@@ -472,7 +504,8 @@ async function readSSE(res, onEvent) {
   }
 }
 function intakeStep(e) {
-  if (e.type === 'ReportExtracted') return { text: `보고 요약: ${e.summary} (고유번호 ${e.mentioned.length}개, 근거 ${e.evidence_count}개 추출)` };
+  if (e.type === 'ReportExtracted') return { text: `보고 요약: ${e.summary} (근거 ${e.evidence_count}개 — 직접 입력 ${e.form_evidence ?? 0}, 문장에서 ${e.evidence_count - (e.form_evidence ?? 0)}`
+                                                   + `${e.selected?.length ? ` · 선택한 요구사항 ${e.selected.join(', ')}` : ''})` };
   if (e.type === 'CandidatesFound') return { text: `후보 요구사항: ${[...new Set([...e.mentioned, ...e.searched])].join(', ') || '없음'}` };
   if (e.type === 'ReportMapped') return { text: `요구사항·조건 매핑 (${e.attempt}차)` };
   if (e.type === 'MappingValidated' && e.retry) return { warn: true, text: `매핑 반려 → 다시 매핑: ${e.problems.join(' / ')}` };
@@ -662,6 +695,33 @@ createApp({
     const reportText = ref('');
     const reports = ref([]);
     const intake = reactive({ running: false, steps: [], error: '', runId: '', confirm: null });
+    const evTypes = [
+      { id: 'pr', label: 'PR', ph: '예: 12 또는 #12' },
+      { id: 'commit', label: '커밋', ph: '예: a1b2c3d' },
+      { id: 'api', label: 'API', ph: '예: PATCH /api/cart/items/{itemId}' },
+      { id: 'test', label: '테스트', ph: '예: CartServiceTest' },
+      { id: 'file', label: '파일', ph: '예: CartController.java' },
+      { id: 'code', label: '코드', ph: '예: CartService.updateQuantity' },
+    ];
+    const evRows = ref([{ type: 'pr', value: '' }, { type: 'api', value: '' }]);
+    const reqSel = ref([]);
+    const reqPick = ref('');
+    const fillMsg = ref('');
+    function pickReq() { if (reqPick.value) reqSel.value.push(reqPick.value); reqPick.value = ''; }
+
+    async function fillEvidence() {
+      const res = await fetch('/reports/evidence', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                     body: JSON.stringify({ text: reportText.value }) });
+      const data = await res.json();
+      const have = new Set(evRows.value.filter(r => r.value.trim()).map(r => `${r.type}|${r.value.trim()}`));
+      const fresh = data.evidence.filter(e => !have.has(`${e.type}|${e.value}`));
+      evRows.value = [...evRows.value.filter(r => r.value.trim()), ...fresh.map(e => ({ type: e.type, value: e.value }))];
+      if (!evRows.value.length) evRows.value.push({ type: 'pr', value: '' });
+      const newReqs = data.req_ids.filter(id => !reqSel.value.includes(id) && reqs.value.some(r => r.id === id));
+      reqSel.value.push(...newReqs);
+      fillMsg.value = fresh.length || newReqs.length
+        ? `근거 ${fresh.length}개${newReqs.length ? `, 요구사항 ${newReqs.length}개` : ''}를 채웠습니다.` : '문장에서 새 근거를 찾지 못했습니다.';
+    }
 
     async function loadReports() {
       reports.value = (await (await fetch('/reports?limit=20')).json()).reports;
@@ -673,7 +733,9 @@ createApp({
       if (!reqs.value.length) await loadReqs();
       try {
         const res = await fetch('/reports/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ author: author.value, text: reportText.value }) });
+                                                    body: JSON.stringify({ author: author.value, text: reportText.value, require_evidence: true,
+                                                                          evidence: evRows.value.filter(r => r.value.trim()),
+                                                                          req_ids: reqSel.value }) });
         if (!res.ok) { intake.error = (await res.json()).detail; intake.running = false; return; }
         await readSSE(res, e => {
           if (e.type === 'RunStarted') intake.runId = e.run_id;
@@ -686,7 +748,10 @@ createApp({
 
     function onIntakeDone(r) {
       if (r.author) { author.value = r.author; saveAuthor(); }
-      if (r.decision === 'confirm') { reportText.value = ''; loadReports(); loadReqs(); }
+      if (r.decision === 'confirm') {
+        reportText.value = ''; evRows.value = [{ type: 'pr', value: '' }, { type: 'api', value: '' }];
+        reqSel.value = []; fillMsg.value = ''; loadReports(); loadReqs();
+      }
     }
 
     // ── 대시보드 탭 ──
@@ -793,7 +858,7 @@ createApp({
              stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
              editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
              draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake,
-             draftReport, onIntakeDone, onChatReportDone, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
+             draftReport, onIntakeDone, evTypes, evRows, reqSel, reqPick, pickReq, fillMsg, fillEvidence, onChatReportDone, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
   },
 }).component('report-confirm', ReportConfirm).mount('#app');
 </script>
