@@ -46,7 +46,7 @@
 1. **테스트 결과 보고서 (단위·통합)**
    - 입력: JUnit XML(surefire), 커버리지(JaCoCo XML, 있으면)
    - 내용: 요약(총/성공/실패/스킵, 수행일), 클래스별 결과, 실패 목록과 원인 요약(LLM), **요구사항별 테스트 연결**(완료 보고 근거 + 테스트명 규칙), 테스트가 없는 요구사항 목록
-   - 데모: petclinic을 `./mvnw test`로 실제 실행해 얻은 결과 파일을 쓴다(JDK 21 확인됨).
+   - 데모: zerofive-store를 `./gradlew test`로 실제 실행해 얻은 결과 파일을 쓴다(Testcontainers 사용이라 Docker 필요).
 2. **개발 명세서 (인터페이스 정의서 + 테이블 정의서)**
    - 인터페이스: OpenAPI → 인터페이스 ID, 메서드·경로, 요청·응답 필드와 제약, 관련 요구사항
    - 테이블: JPA 엔티티(`@Entity`·`@Table`·`@Column`·관계·검증 어노테이션) + DDL(`schema.sql`, sqlglot) 교차 분석 → 컬럼, 타입, 길이, NULL, PK·FK, 불일치 비고. 논리명은 용어 사전을 먼저 쓰고, 없으면 LLM이 추정한 뒤 "추정"으로 표시한다.
@@ -103,25 +103,34 @@
   - `agent/llm/*`: RemoteLLM 공통화. 원본의 ollama/openai 중복 75%를 해소한다.
   - `agent/retrieval/{embedder,index,glossary,text}.py`
   - `agent/requirements.py`(엑셀 로더), `agent/rtm_excel.py`, `agent/analyzers/openapi.py`(근거 확인용)
-  - `data/requirements/*`(29건), `data/glossary/standard_terms.json`, `sh/fetch_artifacts.sh`
+  - `data/requirements/*`, `data/glossary/standard_terms.json` (데모는 이후 zerofive-store 기준으로 교체)
   - tests 패턴(conftest, fake deps)
+
+## 데모 대상과 근거 확인 방식 변경 (2026-10-21)
+- 데모 산출물을 공개 예제(spring-petclinic-rest)에서 **실제 커머스 프로젝트 [zerofive-store](https://github.com/NohYeongO/zerofive-store)**로 바꿨다. Spring Boot 멀티모듈이고 실제 PR #1~#10 이력이 있다.
+  - 요구사항 32건(완료 22, 부분완료 2, 미착수 8): 결제 Mock, 상품 API Mock, 환불·리뷰·배송·관리자 권한 미구현을 그대로 반영
+  - 완료 보고 11건: 실제 PR 내용·병합일 기준, 모듈별 가상 담당자 3명
+- 근거 확인은 서버 로컬 폴더가 아니라 **공용 Git 저장소(납품 브랜치)**를 fetch해 **푸시된 코드만** 인정한다. 커밋·PR도 확인한다.
+- zerofive-store에는 OpenAPI 파일이 없어(springdoc 실행 시 생성) Spring 어노테이션에서 엔드포인트를 뽑는다.
 
 ## PR 순서
 | # | 브랜치 | 내용 |
 |---|---|---|
 | 0 | `main` | 샘플을 복사하고 이름을 req-trace-agent로 바꾼다(LangSmith 프로젝트, FastMCP 이름, 화면 제목, sh 로그 경로). 샘플 전용 파일(`make_student_zip.sh`, `doc/image_usecase*`, 매뉴얼 2종)을 삭제하고 `.gitignore`에 `*.pdf`를 추가한다. 이 상태에서도 원본 인시던트 에이전트는 동작한다. |
 | 1 | `setting` | 인시던트 도메인(데이터·노드·프롬프트·v1)을 제거하고 뼈대를 잡는다. 패키지 구조 `agent/{nodes,llm,store,retrieval,graphs}`, `config.py`, `prompts.py`, LLM 공통화와 async 전환, SQLite 스키마, route→chat 최소 그래프, fake 백엔드, pytest와 CI, `.env.example`, README 골격, `doc/plan.md`. 화면은 탭 골격만 |
-| 2 | `feat/requirements` | 업로드 API와 화면, 요구사항·조건 저장소, 조건 초안 생성 에이전트와 확정 UI, 데모 시드(`tools/seed_demo.py`: 29건 + 체크리스트) |
+| 2 | `feat/requirements` | 업로드 API와 화면, 요구사항·조건 저장소, 조건 초안 생성 에이전트와 확정 UI, 데모 시드(`tools/seed_demo.py`: 요구사항 + 확정 체크리스트) |
 | 3 | `feat/report-intake` | 완료 보고 폼, intake 그래프(extract→candidates→map→verify→confirm→save), RAG, `artifact` MCP 서버, 상태 계산, 데모 보고 15~20건 시드(가상 개발자 3명) |
 | 4 | `feat/dashboard-export` | 집계 API(진척률·분류별·담당자별·추이·위험 신호), 대시보드 탭(Chart.js), **검수용 엑셀 내보내기**(시트 3종, 기준일 지정) + 엑셀 내용 테스트 |
 | 5 | `feat/chatbot` | 질의응답·요약 에이전트, `trace` MCP Tool 연결, 수치 검증 루프, 채팅 탭(SSE 진행 표시) |
-| 6 | `feat/deliverables-test-report` | 산출물 공통 틀(양식·작성 에이전트·검증·검토·docx 출력), `artifact` MCP 서버에 JUnit/JaCoCo 파서, **테스트 결과 보고서**, 산출물 탭, petclinic 실제 테스트 결과 |
-| 7 | `feat/deliverables-dev-spec` | 엔티티·DDL·OpenAPI 분석기, **인터페이스 정의서·테이블 정의서**(xlsx + docx) |
-| 8 | `docs/eval` | 평가: 보고 매핑 정확도, 답변 수치 일치율, 산출물 수치 일치율(추출값과 문서 대조), 라우팅 정확도. LangSmith, README·한계 문서 |
+| 6 | `feat/git-artifacts` | 공용 Git 저장소 기준 근거 확인(fetch, 푸시된 코드만), 커밋·PR 실존 확인, Spring 어노테이션 엔드포인트 분석 |
+| 7 | `chore/demo-zerofive` | 데모 데이터를 zerofive-store 기준으로 교체(요구사항·완료 조건·완료 보고·용어 사전·평가 정답) |
+| 8 | `feat/deliverables-test-report` | 산출물 공통 틀(양식·작성 에이전트·검증·검토·docx 출력), JUnit/JaCoCo 결과 파서, **테스트 결과 보고서**, 산출물 탭, zerofive-store 실제 테스트 결과(Testcontainers라 Docker 필요) |
+| 9 | `feat/deliverables-dev-spec` | 엔티티·DDL·Spring 엔드포인트 분석, **인터페이스 정의서·테이블 정의서**(xlsx + docx) |
+| 10 | `docs/eval` | 평가: 보고 매핑 정확도, 답변 수치 일치율, 산출물 수치 일치율(추출값과 문서 대조), 라우팅 정확도. LangSmith, README·한계 문서 |
 
 ## 검증
 - 각 PR: `pytest -q`(CI), fake 백엔드로 서버와 화면을 띄워 해당 기능을 수동 확인하고 PR 본문에 기록한다.
-- PR 3: qwen3:8b로 "보호자 성으로 검색 API 만들었어요 GET /owners?lastName=" → SFR-005, 조건 1/2 충족 → 부분완료 제안 → 확인 후 대시보드 반영
+- PR 3: qwen3:8b로 일부만 끝낸 보고(예: "결제 붙였고 PG 연동은 아직") → 해당 요구사항의 충족 조건만 제안 → 부분완료 → 확인 후 대시보드 반영
 - PR 4: 시드 데이터로 대시보드 수치와 엑셀 요약 시트 수치가 같은 집계 함수 결과와 일치하는지 테스트. 엑셀을 열어 시트 3종과 서식 확인
 - PR 5: "보안 요구사항 진행률은?"에 대한 답의 숫자가 `get_progress` 결과와 일치하는지 확인
 - PR 6: 평가 수치를 README에 기록
