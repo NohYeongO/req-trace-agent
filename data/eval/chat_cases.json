@@ -1,0 +1,307 @@
+{
+  "note": "채팅 평가 세트. 데모 시드(zerofive-store, 기준일 2026-03-10) 기준. must: 답에 모두 있어야 할 사실, must_any: 그중 하나 이상, forbid: 있으면 안 되는 표현, history: 먼저 보낼 이전 질문(후속 질문 평가용). forbid는 묻지 않은 정보(전체 수치·다른 대상)가 섞였는지 본다.",
+  "cases": [
+    {
+      "id": "req-partial",
+      "q": "SFR-018 남은 거 뭐야?",
+      "route": "status",
+      "must": [
+        "SFR-018",
+        "부분완료",
+        "3/4",
+        "PG"
+      ],
+      "forbid": [
+        "22건",
+        "68.8"
+      ]
+    },
+    {
+      "id": "req-partial-2",
+      "q": "SFR-004 어떻게 됐어?",
+      "route": "status",
+      "must": [
+        "SFR-004",
+        "부분완료",
+        "1/3"
+      ],
+      "forbid": [
+        "68.8"
+      ]
+    },
+    {
+      "id": "req-done",
+      "q": "SFR-019 끝났어?",
+      "route": "status",
+      "must": [
+        "SFR-019",
+        "완료"
+      ],
+      "forbid": [
+        "68.8",
+        "미착수"
+      ]
+    },
+    {
+      "id": "req-not-started",
+      "q": "SER-003 진행 상황 알려줘",
+      "route": "status",
+      "must": [
+        "SER-003",
+        "미착수"
+      ],
+      "forbid": [
+        "68.8"
+      ]
+    },
+    {
+      "id": "req-unknown",
+      "q": "SFR-099 상태는?",
+      "route": "status",
+      "must": [
+        "SFR-099"
+      ],
+      "must_any": [
+        "없",
+        "등록되지"
+      ]
+    },
+    {
+      "id": "name-payment",
+      "q": "결제 기능 끝났어?",
+      "route": "status",
+      "must": [
+        "SFR-018",
+        "부분완료"
+      ],
+      "forbid": [
+        "68.8"
+      ]
+    },
+    {
+      "id": "name-cart",
+      "q": "장바구니 쪽은 다 됐어?",
+      "route": "status",
+      "must": [
+        "SFR-009",
+        "SFR-010",
+        "완료"
+      ],
+      "forbid": [
+        "68.8"
+      ]
+    },
+    {
+      "id": "name-search",
+      "q": "상품 검색 구현됐어?",
+      "route": "status",
+      "must": [
+        "SFR-007",
+        "미착수"
+      ],
+      "forbid": [
+        "68.8"
+      ]
+    },
+    {
+      "id": "name-coupon",
+      "q": "쿠폰 관련 요구사항 상태 알려줘",
+      "route": "status",
+      "must": [
+        "SFR-011",
+        "SFR-012",
+        "SFR-013"
+      ],
+      "forbid": [
+        "32건",
+        "68.8"
+      ]
+    },
+    {
+      "id": "cat-security",
+      "q": "보안 요구사항 진행률 알려줘",
+      "route": "status",
+      "must": [
+        "3건",
+        "2건",
+        "66.7"
+      ],
+      "forbid": [
+        "32건",
+        "68.8"
+      ]
+    },
+    {
+      "id": "cat-func",
+      "q": "기능 요구사항 현황은?",
+      "route": "status",
+      "must": [
+        "22건",
+        "13건"
+      ]
+    },
+    {
+      "id": "overall",
+      "q": "전체 진척률 알려줘",
+      "route": "status",
+      "must": [
+        "68.8",
+        "22"
+      ]
+    },
+    {
+      "id": "pending",
+      "q": "아직 안 된 요구사항 뭐 있어?",
+      "route": "status",
+      "must": [
+        "SFR-004",
+        "SFR-005",
+        "SFR-006",
+        "SFR-007",
+        "SFR-008",
+        "SFR-018",
+        "SFR-020",
+        "SFR-021",
+        "SFR-022",
+        "SER-003"
+      ]
+    },
+    {
+      "id": "partial-list",
+      "q": "부분완료인 요구사항은?",
+      "route": "status",
+      "must": [
+        "SFR-004",
+        "SFR-018"
+      ],
+      "forbid": [
+        "SER-003",
+        "SFR-005"
+      ]
+    },
+    {
+      "id": "risks",
+      "q": "주의해야 할 요구사항 있어?",
+      "route": "status",
+      "must": [
+        "SFR-004",
+        "SFR-005",
+        "SFR-006",
+        "SFR-020",
+        "SER-003"
+      ]
+    },
+    {
+      "id": "author-kim",
+      "q": "김민준이 한 거 알려줘",
+      "route": "status",
+      "must": [
+        "김민준",
+        "3건",
+        "14"
+      ],
+      "forbid": [
+        "박지훈",
+        "이서연"
+      ]
+    },
+    {
+      "id": "author-park",
+      "q": "박지훈님은 뭐 했어?",
+      "route": "status",
+      "must": [
+        "박지훈",
+        "5건",
+        "19"
+      ],
+      "forbid": [
+        "김민준",
+        "이서연"
+      ]
+    },
+    {
+      "id": "next",
+      "q": "다음에 뭐부터 해야 해?",
+      "route": "status",
+      "must_any": [
+        "SFR-005",
+        "SFR-006",
+        "SFR-020",
+        "SER-003",
+        "SFR-018"
+      ]
+    },
+    {
+      "id": "period-last-week",
+      "q": "지난주 정리해줘",
+      "route": "summary",
+      "must": [
+        "4건",
+        "SFR-019",
+        "SFR-018"
+      ],
+      "forbid": [
+        "SFR-001 "
+      ]
+    },
+    {
+      "id": "period-this-week",
+      "q": "이번 주 완료된 거 정리해줘",
+      "route": "summary",
+      "must_any": [
+        "0건",
+        "없"
+      ]
+    },
+    {
+      "id": "period-7days",
+      "q": "최근 7일 정리해줘",
+      "route": "summary",
+      "must": [
+        "3건",
+        "SFR-019"
+      ]
+    },
+    {
+      "id": "follow-category",
+      "history": [
+        "보안 요구사항 진행률 알려줘"
+      ],
+      "q": "그럼 품질은?",
+      "route": "status",
+      "must": [
+        "품질",
+        "3건",
+        "100"
+      ],
+      "forbid": [
+        "68.8",
+        "보안"
+      ]
+    },
+    {
+      "id": "follow-req",
+      "history": [
+        "SFR-018 어떻게 됐어?"
+      ],
+      "q": "남은 조건이 뭐야?",
+      "route": "status",
+      "must": [
+        "PG"
+      ],
+      "forbid": [
+        "SER-003",
+        "SFR-004"
+      ]
+    },
+    {
+      "id": "chat",
+      "q": "안녕, 너는 누구야?",
+      "route": "chat",
+      "must_any": [
+        "도우미",
+        "진척"
+      ]
+    }
+  ]
+}

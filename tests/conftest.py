@@ -64,9 +64,10 @@ class StubMCP:
         if name == "search_requirements":
             return {"results": self.search.search(arguments["query"], arguments.get("top_k", 5))}
         if name == "list_reports":
-            return {"reports": self.store.list_reports(arguments.get("limit", 50), None,
+            return {"reports": self.store.list_reports(arguments.get("limit", 50), arguments.get("author") or None,
                                                        arguments.get("since") or None,
-                                                       arguments.get("until") or None)}
+                                                       arguments.get("until") or None,
+                                                       arguments.get("req_id") or None)}
         if name == "verify_evidence":
             return {"results": self.checker.check(arguments["items"])}
         raise ValueError(name)

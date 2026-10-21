@@ -25,7 +25,7 @@ def test_status_stream_shows_agent_steps(client):
     assert types[0] == "RouteDecided" and events[0]["route"] == "status"
     assert {"PlanCreated", "ToolsCalled", "AnswerToken", "AnswerValidated"} <= set(types)
     plan = next(e for e in events if e["type"] == "PlanCreated")
-    assert plan["tools"] == ["get_progress", "list_requirements"]
+    assert plan["intent"] == "category" and plan["tools"] == ["get_progress"]
     final = events[-1]
     assert final["type"] == "FinalAnswer" and final["route"] == "status" and final["confirm"] is None
 

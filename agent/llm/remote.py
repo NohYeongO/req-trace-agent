@@ -97,11 +97,12 @@ class RemoteLLM:
                               "reason": str(l.get("reason", ""))[:200]})
         return links, usage
 
-    @traceable(run_type="llm", name="llm.answer_status")
-    async def answer_status(self, query: str, facts: str, mode: str, feedback: str | None = None,
-                            on_token=None) -> tuple[str, dict]:
-        system = prompts.SUMMARY_SYSTEM if mode == "summary" else prompts.STATUS_SYSTEM
-        return await self._stream(system, prompts.render_status_input(query, facts, feedback), on_token)
+    @traceable(run_type="llm", name="llm.comment")
+    async def comment(self, query: str, core: str, feedback: str | None = None,
+                      on_token=None) -> tuple[str, dict]:
+        """코드가 쓴 답 본문 뒤에 붙일 짧은 해석·조언."""
+        return await self._stream(prompts.COMMENT_SYSTEM, prompts.render_comment_input(query, core, feedback),
+                                  on_token)
 
     @traceable(run_type="llm", name="llm.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:

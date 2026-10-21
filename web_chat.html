@@ -447,7 +447,7 @@ const TABS = [
 
 const ROUTE_LABELS = { chat: '일반 대화 → 대화 에이전트', status: '현황 질의 → 질의응답 에이전트',
                        summary: '요약 요청 → 요약 에이전트', report: '완료 보고 → 보고 정리 에이전트' };
-const TOOL_LABELS = { get_progress: '진척 집계', get_requirement: '요구사항 상세', list_requirements: '분류별 요구사항', list_reports: '기간별 완료 보고' };
+const TOOL_LABELS = { get_progress: '진척 집계', get_requirement: '요구사항 상세', list_requirements: '분류별 요구사항', list_reports: '완료 보고', search_requirements: '요구사항 의미 검색(RAG)' };
 const STATE_LABELS = { none: '미작성', draft: '검토 대기', confirmed: '확정' };
 const STATUS_CLASS = { '완료': 'st-done', '부분완료': 'st-partial', '미착수': 'st-none', '조건 미확정': 'st-undef' };
 const EV_LABEL = { api: 'API', file: '파일', code: '코드', test: '테스트', pr: 'PR', commit: '커밋' };
@@ -479,12 +479,16 @@ function intakeStep(e) {
   if (e.type === 'EvidenceChecked') return { text: `근거 확인: 있음 ${e.found}, 없음 ${e.not_found}, 확인 불가 ${e.unchecked}` };
   return null;
 }
+const INTENT_LABELS = { requirement: '요구사항', lookup: '이름으로 요구사항 찾기', category: '분류별 진척',
+  author: '담당자 실적', pending: '미완료 목록', risks: '위험 신호', next: '다음 우선순위', period: '기간 요약', overall: '전체 진척' };
 const STEP_LABELS = {
   RouteDecided: e => `질문 분류: ${ROUTE_LABELS[e.route] || e.route}`,
-  PlanCreated: e => `조회 계획: ${e.tools.map(t => TOOL_LABELS[t] || t).join(', ')}${e.period ? ` (${e.period})` : ''}`,
-  ToolsCalled: e => `MCP Tool ${e.count}개 병렬 호출 (${e.elapsed_ms}ms)`,
-  AnswerValidated: e => e.retry ? `수치 검증 반려 → 다시 작성: ${e.problems.join(' / ')}`
-                     : e.fallback ? '검증을 넘지 못해 조회 결과로 답변을 대체' : '수치·고유번호 검증 통과',
+  PlanCreated: e => `질문 유형: ${INTENT_LABELS[e.intent] || e.intent}${e.period ? ` (${e.period})` : ''}`
+                    + `${e.carried_from ? ` · 이전 질문 "${e.carried_from}"의 대상을 이어받음` : ''}`
+                    + ` → 조회: ${e.tools.map(t => TOOL_LABELS[t] || t).join(', ')}`,
+  ToolsCalled: e => `MCP Tool ${e.count}개 호출 (${e.elapsed_ms}ms)${e.matched?.length ? ` · 대상 ${e.matched.join(', ')}` : ''}`,
+  AnswerValidated: e => e.retry ? `코멘트 검증 반려 → 다시 작성: ${e.problems.join(' / ')}`
+                     : e.fallback ? '코멘트가 검증을 넘지 못해 본문만 답변' : '본문은 조회 결과로 작성, 코멘트 검증 통과',
   AgentDelegated: e => e.waiting === undefined ? '보고 정리 에이전트에 위임' : (e.waiting ? '개발자 확인 대기' : '보고 정리 실패'),
   Finalize: () => '답변 완료',
 };
