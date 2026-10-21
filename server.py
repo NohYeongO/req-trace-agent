@@ -28,6 +28,7 @@ from agent.dashboard import build_dashboard
 from agent.rtm_export import export_rtm
 from agent.deps import SupervisorDeps
 from agent.graphs import build_chat_graph, build_criteria_graph, build_intake_graph
+from agent.graphs.intake import intake_config
 from agent.llm import build_llms
 from agent.mcp_client import MCPClient
 from agent.requirements import load_requirements
@@ -42,6 +43,7 @@ CREATION_COUNT = 0   # 프로세스 내 Agent 번들 생성 횟수 (항상 1이�
 class ChatRequest(BaseModel):
     message: str
     thread_id: str = "default"
+    author: str = ""          # 채팅으로 완료 보고할 때 작성자
 
 
 class CriterionIn(BaseModel):
@@ -87,9 +89,11 @@ async def lifespan(app: FastAPI):
                           session_store=SqliteSessionStore(settings.session_db_path),
                           settings=settings)
     app.state.deps = deps
-    app.state.chat_graph = build_chat_graph(deps)
     app.state.criteria_graph = build_criteria_graph(deps)
     app.state.intake_graph = build_intake_graph(deps)
+    # 채팅 supervisor가 완료 보고를 넘길 하위 에이전트 — 완료 보고 탭과 같은 그래프·체크포인터
+    deps.agents["intake"] = app.state.intake_graph
+    app.state.chat_graph = build_chat_graph(deps)
     app.state.instance_id = id(deps)
     yield
     await mcp.stop()
@@ -125,15 +129,17 @@ async def version():
 
 def _metadata(result: dict, run_id: str | None) -> dict:
     return {"route": result.get("route"), "cost_usd": result.get("cost_usd", 0.0),
+            "attempts": result.get("attempts", 0), "used_fallback": result.get("used_fallback", False),
+            "tools": [c["tool"] for c in result.get("calls", [])],
             "llm_backend": app.state.deps.settings.llm_backend,
             "instance_id": app.state.instance_id, "langsmith_run_id": run_id}
 
 
 @traceable(name="chat_request")
-async def _handle_chat(message: str, thread_id: str) -> tuple[dict, str | None]:
+async def _handle_chat(message: str, thread_id: str, author: str) -> tuple[dict, str | None]:
     deps: SupervisorDeps = app.state.deps
     history = deps.session_store.load(thread_id)
-    result = await app.state.chat_graph.ainvoke(initial_state(message, thread_id, history))
+    result = await app.state.chat_graph.ainvoke(initial_state(message, thread_id, history, author))
     deps.session_store.append(thread_id, "user", message)
     deps.session_store.append(thread_id, "assistant", result["final"])
     rt = get_current_run_tree()
@@ -142,8 +148,9 @@ async def _handle_chat(message: str, thread_id: str) -> tuple[dict, str | None]:
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    result, run_id = await _handle_chat(req.message, req.thread_id)
+    result, run_id = await _handle_chat(req.message, req.thread_id, req.author)
     return {"reply": result["final"], "events": result.get("events", []),
+            "confirm": result.get("confirm") or None, "run_id": result.get("run_id") or None,
             "metadata": _metadata(result, run_id)}
 
 
@@ -175,18 +182,21 @@ async def _stream_graph(graph, state, result: dict, config: dict | None = None):
 
 
 @app.get("/chat/stream")
-async def chat_stream(message: str, thread_id: str = "default"):
-    """채팅을 SSE로 보낸다. 마지막에 FinalAnswer, [DONE] 순서."""
+async def chat_stream(message: str, thread_id: str = "default", author: str = ""):
+    """채팅을 SSE로 보낸다. 마지막에 FinalAnswer, [DONE] 순서. 완료 보고로 분류되면
+    FinalAnswer에 확인 카드(confirm)와 실행 ID(run_id)가 실린다."""
     deps: SupervisorDeps = app.state.deps
 
     async def gen():
         history = deps.session_store.load(thread_id)
         result: dict = {}
         async for line in _stream_graph(app.state.chat_graph,
-                                        initial_state(message, thread_id, history), result):
+                                        initial_state(message, thread_id, history, author), result):
             yield line
         final = result.get("final", "")
-        yield _sse({"type": "FinalAnswer", "reply": final, "prompt": result.get("last_prompt", "")})
+        yield _sse({"type": "FinalAnswer", "reply": final, "prompt": result.get("last_prompt", ""),
+                    "route": result.get("route"), "confirm": result.get("confirm") or None,
+                    "run_id": result.get("run_id") or None})
         deps.session_store.append(thread_id, "user", message)
         deps.session_store.append(thread_id, "assistant", final)
         yield _sse("[DONE]")
@@ -262,9 +272,6 @@ async def draft_criteria_stream(req_ids: str = "", overwrite: bool = False):
 
 
 # ── 완료 보고 ──────────────────────────────────────────────────────────
-def _run_config(run_id: str) -> dict:
-    return {"configurable": {"thread_id": f"intake-{run_id}"}}
-
 
 @app.post("/reports/draft")
 async def draft_report(body: ReportDraft):
@@ -279,7 +286,7 @@ async def draft_report(body: ReportDraft):
         result: dict = {}
         async for line in _stream_graph(app.state.intake_graph,
                                         initial_intake_state(body.author.strip(), body.text.strip()),
-                                        result, _run_config(run_id)):
+                                        result, intake_config(run_id)):
             yield line
         yield _sse("[DONE]")
 
@@ -288,12 +295,14 @@ async def draft_report(body: ReportDraft):
 
 @app.post("/reports/{run_id}/confirm")
 async def confirm_report(run_id: str, body: ReportDecision):
-    graph, config = app.state.intake_graph, _run_config(run_id)
+    graph, config = app.state.intake_graph, intake_config(run_id)
     snapshot = await graph.aget_state(config)
     if "confirm" not in (snapshot.next or ()):
         raise HTTPException(404, "확인을 기다리는 보고가 없습니다(이미 처리됐거나 서버가 재시작됨).")
     if body.decision not in ("confirm", "cancel"):
         raise HTTPException(400, "decision은 confirm 또는 cancel이어야 합니다.")
+    if body.decision == "confirm" and not (body.author or snapshot.values.get("author") or "").strip():
+        raise HTTPException(400, "작성자 이름을 입력해 주세요.")
     if body.decision == "confirm":
         # 재개하기 전에 먼저 검증한다 — 저장 단계에서 실패하면 그래프가 save 직전에 멈춰
         # 다시 확인할 수 없게 되기 때문이다.

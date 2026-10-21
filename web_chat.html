@@ -274,49 +274,8 @@
           <div v-for="(st, i) in intake.steps" :key="i" :class="{ warn: st.warn }">{{ st.text }}</div>
         </div>
 
-        <div v-if="intake.confirm" class="notice" style="margin-top:16px">
-          <b>AI 정리 결과를 확인해 주세요.</b> 요구사항과 충족한 조건을 고친 뒤 확인을 누르면 저장됩니다.
-          <div class="field">요약<input v-model="intake.summary" /></div>
-
-          <div v-for="l in intake.links" :key="l.req_id" class="linkcard" :class="{ off: !l.include }">
-            <h3><input type="checkbox" v-model="l.include" style="width:auto" /> {{ l.req_id }} {{ l.name }}</h3>
-            <div v-if="l.reason" class="why">AI 판단: {{ l.reason }}</div>
-            <label v-for="c in l.criteria" :key="c.id" class="check">
-              <input type="checkbox" v-model="c.met" :disabled="!l.include" />
-              <span>{{ c.text }} <span v-if="!c.confirmed" class="badge draft">미확정 조건</span></span>
-            </label>
-            <div v-if="!l.criteria.length" class="why">완료 조건이 없습니다. 요구사항 탭에서 먼저 확정해 주세요.</div>
-          </div>
-
-          <div class="toolbar">
-            <select v-model="intake.addId">
-              <option value="">다른 요구사항 추가…</option>
-              <option v-for="r in addable" :key="r.id" :value="r.id">{{ r.id }} {{ r.name }}</option>
-            </select>
-            <button class="btn" :disabled="!intake.addId" @click="addLink">추가</button>
-          </div>
-
-          <div class="field">근거 확인 (보고에 적힌 이름이 산출물에 실제로 있는지)</div>
-          <div v-if="!intake.evidence.length" class="why" style="font-size:12px;color:var(--muted)">보고에서 파일·API·테스트 이름을 찾지 못했습니다.</div>
-          <div v-for="(e, i) in intake.evidence" :key="i" class="ev">
-            <span :class="e.status === 'found' ? 'ok' : e.status === 'not_found' ? 'no' : ''">
-              {{ e.status === 'found' ? '✓' : e.status === 'not_found' ? '✗' : '–' }}</span>
-            <span>[{{ evLabel[e.type] || e.type }}]</span> <b>{{ e.value }}</b>
-            <span>{{ e.status === 'not_found' ? '산출물에서 찾지 못함' : (e.where || '') }}</span>
-          </div>
-
-          <div class="toolbar">
-            <button class="btn primary" :disabled="intake.saving" @click="decide('confirm')">확인하고 저장</button>
-            <button class="btn" :disabled="intake.saving" @click="decide('cancel')">취소</button>
-          </div>
-        </div>
-        <div v-if="intake.result" class="notice" style="margin-top:12px">
-          {{ intake.result.message }}
-          <div v-for="c in intake.result.changes" :key="c.req_id">
-            {{ c.req_id }}: <span class="badge" :class="statusClass(c.before)">{{ c.before }}</span> →
-            <span class="badge" :class="statusClass(c.after)">{{ c.after }}</span> ({{ c.met }}/{{ c.total }})
-          </div>
-        </div>
+        <report-confirm v-if="intake.confirm" :key="intake.runId" :payload="intake.confirm" :run-id="intake.runId"
+                        :author="author" :requirements="reqs" @done="onIntakeDone"></report-confirm>
 
         <h2 style="margin-top:24px">최근 완료 보고</h2>
         <div v-for="r in reports" :key="r.id" class="report-item">
@@ -410,6 +369,10 @@
             <div v-for="(step, i) in item.steps" :key="i" class="step">{{ step }}</div>
           </div>
           <div v-else-if="item.kind === 'agent'" class="row agent"><div class="bubble">{{ item.text }}</div></div>
+          <div v-else-if="item.kind === 'confirm'" style="max-width:720px">
+            <report-confirm :payload="item.payload" :run-id="item.runId" :author="author" :requirements="reqs"
+                            @done="onChatReportDone"></report-confirm>
+          </div>
           <details v-else-if="item.kind === 'prompt'" class="prompt-box">
             <summary>LLM에 전달된 프롬프트 보기</summary>
             <pre>{{ item.text }}</pre>
@@ -417,12 +380,58 @@
         </template>
       </div>
       <form @submit.prevent="onSubmit">
-        <input v-model="input" autocomplete="off" placeholder="예: 보안 요구사항 진행률 알려줘" />
+        <input v-model="input" autocomplete="off" placeholder="예: 보안 요구사항 진행률 알려줘 / SFR-005 남은 거 뭐야? / 수의사 삭제 API 끝냈습니다" />
         <button type="submit" :disabled="sending">보내기</button>
       </form>
     </template>
   </main>
 </div>
+
+<script type="text/x-template" id="report-confirm-tpl">
+  <div class="notice" style="margin-top:12px">
+    <template v-if="!result">
+      <b>AI 정리 결과를 확인해 주세요.</b> 요구사항과 충족한 조건을 고친 뒤 확인을 누르면 저장됩니다.
+      <div class="field">작성자<input v-model="who" placeholder="이름" style="max-width:220px" /></div>
+      <div class="field">요약<input v-model="summary" /></div>
+      <div v-for="l in links" :key="l.req_id" class="linkcard" :class="{ off: !l.include }">
+        <h3><input type="checkbox" v-model="l.include" /> {{ l.req_id }} {{ l.name }}</h3>
+        <div v-if="l.reason" class="why">AI 판단: {{ l.reason }}</div>
+        <label v-for="c in l.criteria" :key="c.id" class="check">
+          <input type="checkbox" v-model="c.met" :disabled="!l.include" />
+          <span>{{ c.text }} <span v-if="!c.confirmed" class="badge draft">미확정 조건</span></span>
+        </label>
+        <div v-if="!l.criteria.length" class="why">완료 조건이 없습니다. 요구사항 탭에서 먼저 확정해 주세요.</div>
+      </div>
+      <div class="toolbar">
+        <select v-model="addId">
+          <option value="">다른 요구사항 추가…</option>
+          <option v-for="r in addable" :key="r.id" :value="r.id">{{ r.id }} {{ r.name }}</option>
+        </select>
+        <button class="btn" :disabled="!addId" @click="addRequirement">추가</button>
+      </div>
+      <div class="field">근거 확인 (보고에 적힌 이름이 산출물에 실제로 있는지)</div>
+      <div v-if="!evidence.length" style="font-size:12px;color:var(--muted)">보고에서 파일·API·테스트 이름을 찾지 못했습니다.</div>
+      <div v-for="(e, i) in evidence" :key="i" class="ev">
+        <span :class="e.status === 'found' ? 'ok' : e.status === 'not_found' ? 'no' : ''">
+          {{ e.status === 'found' ? '✓' : e.status === 'not_found' ? '✗' : '–' }}</span>
+        <span>[{{ evLabel[e.type] || e.type }}]</span> <b>{{ e.value }}</b>
+        <span>{{ e.status === 'not_found' ? '산출물에서 찾지 못함' : (e.where || '') }}</span>
+      </div>
+      <div v-if="error" class="notice err">{{ error }}</div>
+      <div class="toolbar">
+        <button class="btn primary" :disabled="saving" @click="submit('confirm')">확인하고 저장</button>
+        <button class="btn" :disabled="saving" @click="submit('cancel')">취소</button>
+      </div>
+    </template>
+    <template v-else>
+      {{ result.message }}
+      <div v-for="c in result.changes" :key="c.req_id">
+        {{ c.req_id }}: <span class="badge" :class="statusClass(c.before)">{{ c.before }}</span> →
+        <span class="badge" :class="statusClass(c.after)">{{ c.after }}</span> ({{ c.met }}/{{ c.total }})
+      </div>
+    </template>
+  </div>
+</script>
 
 <script src="https://unpkg.com/vue@3.4.38/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -436,7 +445,9 @@ const TABS = [
   { id: 'chat', label: '채팅' },
 ];
 
-const ROUTE_LABELS = { chat: '일반 대화', status: '현황 질의', summary: '요약 요청' };
+const ROUTE_LABELS = { chat: '일반 대화 → 대화 에이전트', status: '현황 질의 → 질의응답 에이전트',
+                       summary: '요약 요청 → 요약 에이전트', report: '완료 보고 → 보고 정리 에이전트' };
+const TOOL_LABELS = { get_progress: '진척 집계', get_requirement: '요구사항 상세', list_requirements: '분류별 요구사항', list_reports: '기간별 완료 보고' };
 const STATE_LABELS = { none: '미작성', draft: '검토 대기', confirmed: '확정' };
 const STATUS_CLASS = { '완료': 'st-done', '부분완료': 'st-partial', '미착수': 'st-none', '조건 미확정': 'st-undef' };
 const EV_LABEL = { api: 'API', file: '파일', code: '코드', test: '테스트', pr: 'PR', commit: '커밋' };
@@ -460,9 +471,59 @@ async function readSSE(res, onEvent) {
     }
   }
 }
+function intakeStep(e) {
+  if (e.type === 'ReportExtracted') return { text: `보고 요약: ${e.summary} (고유번호 ${e.mentioned.length}개, 근거 ${e.evidence_count}개 추출)` };
+  if (e.type === 'CandidatesFound') return { text: `후보 요구사항: ${[...new Set([...e.mentioned, ...e.searched])].join(', ') || '없음'}` };
+  if (e.type === 'ReportMapped') return { text: `요구사항·조건 매핑 (${e.attempt}차)` };
+  if (e.type === 'MappingValidated' && e.retry) return { warn: true, text: `매핑 반려 → 다시 매핑: ${e.problems.join(' / ')}` };
+  if (e.type === 'EvidenceChecked') return { text: `근거 확인: 있음 ${e.found}, 없음 ${e.not_found}, 확인 불가 ${e.unchecked}` };
+  return null;
+}
 const STEP_LABELS = {
   RouteDecided: e => `질문 분류: ${ROUTE_LABELS[e.route] || e.route}`,
+  PlanCreated: e => `조회 계획: ${e.tools.map(t => TOOL_LABELS[t] || t).join(', ')}${e.period ? ` (${e.period})` : ''}`,
+  ToolsCalled: e => `MCP Tool ${e.count}개 병렬 호출 (${e.elapsed_ms}ms)`,
+  AnswerValidated: e => e.retry ? `수치 검증 반려 → 다시 작성: ${e.problems.join(' / ')}`
+                     : e.fallback ? '검증을 넘지 못해 조회 결과로 답변을 대체' : '수치·고유번호 검증 통과',
+  AgentDelegated: e => e.waiting === undefined ? '보고 정리 에이전트에 위임' : (e.waiting ? '개발자 확인 대기' : '보고 정리 실패'),
   Finalize: () => '답변 완료',
+};
+
+// 완료 보고 확인 카드 — 완료 보고 탭과 채팅이 함께 쓴다.
+const ReportConfirm = {
+  template: '#report-confirm-tpl',
+  props: { payload: Object, runId: String, author: String, requirements: Array },
+  emits: ['done'],
+  setup(props, { emit }) {
+    const who = ref(props.author || props.payload.author || '');
+    const summary = ref(props.payload.summary || '');
+    const links = ref(props.payload.links.map(l => ({ ...l, include: true, criteria: l.criteria.map(c => ({ ...c })) })));
+    const evidence = props.payload.evidence_check || [];
+    const addId = ref('');
+    const saving = ref(false);
+    const error = ref('');
+    const result = ref(null);
+    const addable = computed(() => (props.requirements || []).filter(r => !links.value.some(l => l.req_id === r.id)));
+    async function addRequirement() {
+      const r = await (await fetch(`/requirements/${encodeURIComponent(addId.value)}`)).json();
+      links.value.push({ req_id: r.id, name: r.name, reason: '직접 추가', include: true,
+                         criteria: r.criteria.map(c => ({ id: c.id, text: c.text, confirmed: c.confirmed, met: false })) });
+      addId.value = '';
+    }
+    async function submit(decision) {
+      saving.value = true; error.value = '';
+      const body = { decision, author: who.value, summary: summary.value,
+                     links: links.value.filter(l => l.include).map(l => ({ req_id: l.req_id, met_criteria: l.criteria.filter(c => c.met).map(c => c.id) })) };
+      const res = await fetch(`/reports/${props.runId}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      saving.value = false;
+      if (!res.ok) { error.value = data.detail; return; }
+      result.value = data;
+      emit('done', { decision, author: who.value, ...data });
+    }
+    return { who, summary, links, evidence, addId, saving, error, result, addable, addRequirement, submit,
+             evLabel: EV_LABEL, statusClass: st => STATUS_CLASS[st] || 'st-none' };
+  },
 };
 
 createApp({
@@ -596,26 +657,15 @@ createApp({
     const saveAuthor = () => { try { localStorage.setItem('rt-author', author.value); } catch {} };
     const reportText = ref('');
     const reports = ref([]);
-    const intake = reactive({ running: false, saving: false, steps: [], error: '', runId: '', confirm: null,
-                              summary: '', links: [], evidence: [], addId: '', result: null });
-    const addable = computed(() => reqs.value.filter(r => !intake.links.some(l => l.req_id === r.id)));
+    const intake = reactive({ running: false, steps: [], error: '', runId: '', confirm: null });
 
     async function loadReports() {
       reports.value = (await (await fetch('/reports?limit=20')).json()).reports;
     }
 
-    function stepFor(e) {
-      if (e.type === 'ReportExtracted') return { text: `보고 요약: ${e.summary} (고유번호 ${e.mentioned.length}개, 근거 ${e.evidence_count}개 추출)` };
-      if (e.type === 'CandidatesFound') return { text: `후보 요구사항: ${[...new Set([...e.mentioned, ...e.searched])].join(', ') || '없음'}` };
-      if (e.type === 'ReportMapped') return { text: `요구사항·조건 매핑 (${e.attempt}차)` };
-      if (e.type === 'MappingValidated' && e.retry) return { warn: true, text: `매핑 반려 → 다시 매핑: ${e.problems.join(' / ')}` };
-      if (e.type === 'EvidenceChecked') return { text: `근거 확인: 있음 ${e.found}, 없음 ${e.not_found}, 확인 불가 ${e.unchecked}` };
-      return null;
-    }
-
     async function draftReport() {
       saveAuthor();
-      Object.assign(intake, { running: true, steps: [], error: '', confirm: null, result: null, links: [], evidence: [] });
+      Object.assign(intake, { running: true, steps: [], error: '', confirm: null });
       if (!reqs.value.length) await loadReqs();
       try {
         const res = await fetch('/reports/draft', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -623,35 +673,16 @@ createApp({
         if (!res.ok) { intake.error = (await res.json()).detail; intake.running = false; return; }
         await readSSE(res, e => {
           if (e.type === 'RunStarted') intake.runId = e.run_id;
-          else if (e.type === 'ConfirmRequired') {
-            intake.confirm = e;
-            intake.summary = e.summary;
-            intake.links = e.links.map(l => ({ ...l, include: true, criteria: l.criteria.map(c => ({ ...c })) }));
-            intake.evidence = e.evidence_check;
-          } else { const st = stepFor(e); if (st) intake.steps.push(st); }
+          else if (e.type === 'ConfirmRequired') intake.confirm = e;
+          else { const st = intakeStep(e); if (st) intake.steps.push(st); }
         });
       } catch (err) { intake.error = '정리 중 오류: ' + err; }
       intake.running = false;
     }
 
-    async function addLink() {
-      const r = await (await fetch(`/requirements/${encodeURIComponent(intake.addId)}`)).json();
-      intake.links.push({ req_id: r.id, name: r.name, reason: '직접 추가', include: true,
-                          criteria: r.criteria.map(c => ({ id: c.id, text: c.text, confirmed: c.confirmed, met: false })) });
-      intake.addId = '';
-    }
-
-    async function decide(decision) {
-      intake.saving = true; intake.error = '';
-      const links = intake.links.filter(l => l.include)
-        .map(l => ({ req_id: l.req_id, met_criteria: l.criteria.filter(c => c.met).map(c => c.id) }));
-      const res = await fetch(`/reports/${intake.runId}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision, author: author.value, summary: intake.summary, links }) });
-      const data = await res.json();
-      intake.saving = false;
-      if (!res.ok) { intake.error = data.detail; return; }
-      intake.confirm = null; intake.result = data;
-      if (decision === 'confirm') { reportText.value = ''; loadReports(); loadReqs(); }
+    function onIntakeDone(r) {
+      if (r.author) { author.value = r.author; saveAuthor(); }
+      if (r.decision === 'confirm') { reportText.value = ''; loadReports(); loadReqs(); }
     }
 
     // ── 대시보드 탭 ──
@@ -702,6 +733,11 @@ createApp({
       if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight;
     }
 
+    function onChatReportDone(r) {
+      if (r.author) { author.value = r.author; saveAuthor(); }
+      scrollToBottom();
+    }
+
     function onSubmit() {
       const text = input.value.trim();
       if (!text || sending.value) return;
@@ -712,8 +748,10 @@ createApp({
       log.value.push(stepsItem);
       scrollToBottom();
 
-      const es = new EventSource(`/chat/stream?message=${encodeURIComponent(text)}&thread_id=${encodeURIComponent(thread)}`);
+      if (!reqs.value.length) loadReqs();
+      const es = new EventSource(`/chat/stream?message=${encodeURIComponent(text)}&thread_id=${encodeURIComponent(thread)}&author=${encodeURIComponent(author.value)}`);
       let streamItem = null;
+      let streamAttempt = null;   // 수치 검증으로 다시 쓰면 말풍선을 새로 시작한다
 
       es.onmessage = (event) => {
         if (event.data === '[DONE]') { es.close(); sending.value = false; return; }
@@ -725,6 +763,8 @@ createApp({
             streamItem = reactive({ id: nextId++, kind: 'agent', text: '' });
             log.value.push(streamItem);
           }
+          if (streamAttempt !== null && e.attempt !== streamAttempt) streamItem.text = '';
+          streamAttempt = e.attempt ?? null;
           streamItem.text += e.delta;
         } else if (e.type === 'FinalAnswer') {
           if (!streamItem) {
@@ -732,10 +772,11 @@ createApp({
             log.value.push(streamItem);
           }
           streamItem.text = e.reply;   // 토큰 합산 결과를 서버의 최종 텍스트로 맞춘다
+          if (e.confirm) log.value.push({ id: nextId++, kind: 'confirm', payload: e.confirm, runId: e.run_id });
           if (e.prompt) log.value.push({ id: nextId++, kind: 'prompt', text: e.prompt });
           streamItem = null;
         } else {
-          const label = STEP_LABELS[e.type]?.(e);
+          const label = STEP_LABELS[e.type]?.(e) ?? intakeStep(e)?.text;
           if (label) stepsItem.steps.push(label);
         }
         scrollToBottom();
@@ -747,10 +788,10 @@ createApp({
              reqs, fileEl, uploading, uploadResult, uploadError, upload, categories, catFilter,
              stateFilters, stateFilter, stateCount, stateLabel, filteredReqs, openId, detail, toggle,
              editItems, saving, saveError, saveCriteria, drafting, overwrite, draft, draftTargetCount,
-             draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake, addable,
-             draftReport, addLink, decide, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
+             draftCriteria, statusClass, evLabel, author, saveAuthor, reportText, reports, intake,
+             draftReport, onIntakeDone, onChatReportDone, dash, asOf, trendEl, statusOrder, pct, exportUrl, loadDashboard };
   },
-}).mount('#app');
+}).component('report-confirm', ReportConfirm).mount('#app');
 </script>
 </body>
 </html>
