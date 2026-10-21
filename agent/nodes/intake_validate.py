@@ -32,9 +32,12 @@ async def intake_validate_node(state: IntakeState, deps: SupervisorDeps) -> dict
     last_try = state["attempts"] > deps.settings.intake_retries
     feedback = "; ".join(problems) if problems and not last_try else ""
     if not feedback:
+        selected = state.get("selected", [])
         for rid in state["mentioned"]:
             if rid in owned and rid not in seen:
-                clean.append({"req_id": rid, "met": [], "reason": "보고에 고유번호가 적혀 있음"})
+                why = ("작성자가 선택한 요구사항 — AI는 충족한 조건을 찾지 못했습니다. 직접 체크해 주세요."
+                       if rid in selected else "보고에 고유번호가 적혀 있음")
+                clean.append({"req_id": rid, "met": [], "reason": why})
     event = {"type": "MappingValidated", "attempt": state["attempts"], "problems": problems,
              "retry": bool(feedback)}
     return {"links": clean if not feedback else state["links"], "feedback": feedback,

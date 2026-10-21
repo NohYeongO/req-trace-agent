@@ -38,3 +38,24 @@ def test_checker_marks_external_and_missing_root_as_unchecked():
     assert _check(("pr", "#3"), ("commit", "abc1234")) == ["unchecked", "unchecked"]
     r = ArtifactChecker(None).check([{"type": "api", "value": "GET /owners"}])
     assert r[0]["status"] == "unchecked" and "ARTIFACT_ROOT" in r[0]["where"]
+
+
+def test_normalize_form_evidence():
+    from agent.evidence import merge_evidence, normalize_evidence
+    items, errors = normalize_evidence([
+        {"type": "pr", "value": "PR #12"}, {"type": "pr", "value": "12"},          # 같은 PR은 하나로
+        {"type": "api", "value": "patch /api/cart/items/{itemId}"},
+        {"type": "commit", "value": "A1B2C3D"}, {"type": "test", "value": "CartServiceTest"},
+        {"type": "file", "value": " "},                                            # 빈 칸은 건너뜀
+    ])
+    assert errors == []
+    assert [(e["type"], e["value"]) for e in items] == [
+        ("pr", "#12"), ("api", "PATCH /api/cart/items/{itemId}"), ("commit", "a1b2c3d"), ("test", "CartServiceTest")]
+    assert all(e["source"] == "form" for e in items)
+    _, errors = normalize_evidence([{"type": "pr", "value": "열두번"}, {"type": "api", "value": "/api/cart"},
+                                    {"type": "commit", "value": "xyz"}, {"type": "url", "value": "x"}])
+    assert len(errors) == 4 and "PR" in errors[0] and "메서드 경로" in errors[1]
+    # 양식 근거를 먼저 두고, 문장에서 찾은 것 중 양식에 없는 것만 덧붙인다
+    merged = merge_evidence(items, "PR #12에서 CartController.java 수정")
+    assert [(e["value"], e["source"]) for e in merged][-1] == ("CartController.java", "text")
+    assert sum(e["value"] == "#12" for e in merged) == 1

@@ -25,13 +25,14 @@ from pydantic import BaseModel
 from agent.config import get_settings, today_of
 from agent.criteria_rules import beyond_source
 from agent.dashboard import build_dashboard
+from agent.evidence import extract_evidence, merge_evidence, normalize_evidence
 from agent.rtm_export import export_rtm
 from agent.deps import SupervisorDeps
 from agent.graphs import build_chat_graph, build_criteria_graph, build_intake_graph
 from agent.graphs.intake import intake_config
 from agent.llm import build_llms
 from agent.mcp_client import MCPClient
-from agent.requirements import load_requirements
+from agent.requirements import REQ_ID_RE, load_requirements
 from agent.state import initial_criteria_state, initial_intake_state, initial_state
 from agent.store import ProjectStore, SqliteSessionStore
 
@@ -57,9 +58,17 @@ class CriteriaUpdate(BaseModel):
     confirm: bool = False
 
 
+class EvidenceIn(BaseModel):
+    type: str                     # pr | commit | api | test | file | code
+    value: str
+
+
 class ReportDraft(BaseModel):
     author: str
     text: str
+    evidence: list[EvidenceIn] = []     # 완료 보고 양식의 근거 칸
+    req_ids: list[str] = []             # 작성자가 고른 요구사항(선택)
+    require_evidence: bool = False      # 양식 제출이면 근거(칸 또는 문장) 최소 1개를 요구
 
 
 class LinkIn(BaseModel):
@@ -282,18 +291,40 @@ async def draft_report(body: ReportDraft):
     확인·취소는 POST /reports/{run_id}/confirm."""
     if not body.author.strip() or not body.text.strip():
         raise HTTPException(400, "작성자와 보고 내용을 입력해 주세요.")
+    evidence, errors = normalize_evidence([e.model_dump() for e in body.evidence])
+    if errors:
+        raise HTTPException(400, " / ".join(errors))
+    store = app.state.deps.store
+    unknown = [rid for rid in body.req_ids if not store.get_requirement(rid)]
+    if unknown:
+        raise HTTPException(400, f"등록되지 않은 요구사항: {', '.join(unknown)}")
+    if body.require_evidence and not merge_evidence(evidence, body.text):
+        raise HTTPException(400, "구현 근거(PR·커밋·API·테스트·파일·코드)를 최소 1개 입력해 주세요. "
+                                 "검수 추적표의 '구현 근거'가 됩니다.")
     run_id = uuid.uuid4().hex[:12]
 
     async def gen():
         yield _sse({"type": "RunStarted", "run_id": run_id})
         result: dict = {}
         async for line in _stream_graph(app.state.intake_graph,
-                                        initial_intake_state(body.author.strip(), body.text.strip()),
+                                        initial_intake_state(body.author.strip(), body.text.strip(), evidence,
+                                                             list(dict.fromkeys(body.req_ids))),
                                         result, intake_config(run_id)):
             yield line
         yield _sse("[DONE]")
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+class EvidencePreview(BaseModel):
+    text: str
+
+
+@app.post("/reports/evidence")
+async def preview_evidence(body: EvidencePreview):
+    """보고 문장에서 찾은 근거·요구사항 ID — 양식의 빈 칸을 미리 채우는 데 쓴다(AI 아님, 정규식)."""
+    return {"evidence": extract_evidence(body.text),
+            "req_ids": list(dict.fromkeys(REQ_ID_RE.findall(body.text)))}
 
 
 @app.post("/reports/{run_id}/confirm")
