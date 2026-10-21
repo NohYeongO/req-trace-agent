@@ -23,7 +23,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(project_name="테스트 사업", db_path=tmp_path / "req_trace.db",
+    return Settings(project_name="테스트 사업", db_path=tmp_path / "req_trace.db", fixed_today="2026-10-20",
                     session_db_path=tmp_path / "session.db", output_dir=tmp_path / "out",
                     llm_backend="fake", artifact_root=FIXTURES / "mini_artifact",
                     glossary_file=DATA_DIR / "glossary" / "standard_terms.json",
@@ -53,13 +53,20 @@ class StubMCP:
         if name == "get_store_status":
             return {"counts": self.store.counts()}
         if name == "list_requirements":
-            return {"requirements": self.store.list_requirements()}
+            return {"requirements": self.store.list_requirements(arguments.get("category") or None)}
+        if name == "get_progress":
+            from agent.dashboard import build_dashboard
+            d = build_dashboard(self.store, arguments.get("as_of") or None)
+            d.pop("trend")
+            return d
         if name == "get_requirement":
             return self.store.get_requirement(arguments["req_id"]) or {"error": "없음"}
         if name == "search_requirements":
             return {"results": self.search.search(arguments["query"], arguments.get("top_k", 5))}
         if name == "list_reports":
-            return {"reports": self.store.list_reports()}
+            return {"reports": self.store.list_reports(arguments.get("limit", 50), None,
+                                                       arguments.get("since") or None,
+                                                       arguments.get("until") or None)}
         if name == "verify_evidence":
             return {"results": self.checker.check(arguments["items"])}
         raise ValueError(name)

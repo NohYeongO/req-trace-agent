@@ -5,17 +5,29 @@ from typing import TypedDict
 class ChatState(TypedDict, total=False):
     query: str
     thread_id: str
+    author: str           # 화면에 저장된 작성자 이름(채팅으로 완료 보고할 때 씀)
     history: list[dict]
-    route: str            # chat | status | summary
+    route: str            # chat | status | summary | report
+    calls: list[dict]     # 질의응답: 부를 MCP Tool 계획
+    results: list[dict]   # 질의응답: Tool 결과
+    facts: str            # 질의응답: LLM에 줄 사실 문단(검증 기준)
+    draft: str
+    feedback: str         # 답변 검증 반려 사유
+    attempts: int
+    used_fallback: bool   # LLM 답이 끝내 검증을 못 넘어 코드가 쓴 답을 줬는지
+    run_id: str           # 완료 보고 위임: 보고 정리 에이전트 실행 ID
+    confirm: dict         # 완료 보고 위임: 개발자 확인 카드 내용
     final: str
     last_prompt: str
     cost_usd: float
     events: list[dict]
 
 
-def initial_state(query: str, thread_id: str, history: list[dict]) -> ChatState:
-    return {"query": query, "thread_id": thread_id, "history": history, "route": "",
-            "final": "", "last_prompt": "", "cost_usd": 0.0, "events": []}
+def initial_state(query: str, thread_id: str, history: list[dict], author: str = "") -> ChatState:
+    return {"query": query, "thread_id": thread_id, "author": author, "history": history,
+            "route": "", "calls": [], "results": [], "facts": "", "draft": "", "feedback": "",
+            "attempts": 0, "used_fallback": False, "run_id": "", "confirm": {}, "final": "",
+            "last_prompt": "", "cost_usd": 0.0, "events": []}
 
 
 class CriteriaState(TypedDict, total=False):

@@ -10,7 +10,7 @@ from langsmith import traceable
 
 from .. import prompts
 from ..requirements import REQ_ID_RE
-from .rules import route_by_rule
+from .rules import guard_route, route_by_rule
 
 
 def parse_json(content: str) -> dict:
@@ -60,7 +60,7 @@ class RemoteLLM:
         route = parse_json(content).get("route")
         if route not in prompts.ROUTES:   # 형식 붕괴 — 키워드 규칙으로 보정
             route = route_by_rule(query)
-        return {"route": route}, usage
+        return {"route": guard_route(query, route)}, usage
 
     @traceable(run_type="llm", name="llm.draft_criteria")
     async def draft_criteria(self, req: dict, feedback: str | None = None) -> tuple[list[str], dict]:
@@ -96,6 +96,12 @@ class RemoteLLM:
                 links.append({"req_id": m.group(1) if m else l["req_id"].strip(), "met": met,
                               "reason": str(l.get("reason", ""))[:200]})
         return links, usage
+
+    @traceable(run_type="llm", name="llm.answer_status")
+    async def answer_status(self, query: str, facts: str, mode: str, feedback: str | None = None,
+                            on_token=None) -> tuple[str, dict]:
+        system = prompts.SUMMARY_SYSTEM if mode == "summary" else prompts.STATUS_SYSTEM
+        return await self._stream(system, prompts.render_status_input(query, facts, feedback), on_token)
 
     @traceable(run_type="llm", name="llm.chat")
     async def chat(self, query: str, history: list[dict], on_token=None) -> tuple[str, dict]:

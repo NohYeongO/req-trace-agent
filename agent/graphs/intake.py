@@ -22,6 +22,11 @@ from ..nodes.intake_verify import intake_verify_node
 from ..state import IntakeState
 
 
+def intake_config(run_id: str) -> dict:
+    """보고 정리 실행 하나의 체크포인트 키 — 완료 보고 탭과 채팅 위임이 같은 규칙을 쓴다."""
+    return {"configurable": {"thread_id": f"intake-{run_id}"}}
+
+
 def _after_validate(state: IntakeState) -> str:
     return "map" if state["feedback"] else "verify"
 
