@@ -38,3 +38,14 @@ def test_stream_sends_events_tokens_and_done(client):
     types = [e["type"] for e in events]
     assert types[0] == "RouteDecided" and "AnswerToken" in types
     assert types[-1] == "FinalAnswer" and events[-1]["reply"]
+
+
+def test_trace_config_keeps_run_config():
+    """LangSmith 트레이스 이름·메타데이터를 붙여도 체크포인트 키(configurable)는 그대로다."""
+    import server
+    from agent.graphs.intake import intake_config
+    cfg = server._trace("report_intake", intake_config("abc"), run_id="abc", author="")
+    assert cfg["configurable"] == {"thread_id": "intake-abc"}
+    assert cfg["run_name"] == "report_intake" and cfg["tags"] == ["report_intake"]
+    assert cfg["metadata"] == {"run_id": "abc"}                    # 빈 값은 빼고 보낸다
+    assert server._trace("deliverable:dev_spec")["tags"] == ["deliverable"]
